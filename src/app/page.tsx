@@ -95,7 +95,7 @@ export default function Home() {
   const [startDate, setStartDate] = useState<Date>(defaultStart);
   const [endDate, setEndDate] = useState<Date>(defaultEnd);
 
-  const { data, isLoading, isError, isFetching } = useQuery<ApiResponse>({
+  const { data, isLoading, isError, isFetching, error } = useQuery<ApiResponse>({
     queryKey: ["dashboard", startDate?.toISOString(), endDate?.toISOString()],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -103,19 +103,23 @@ export default function Home() {
         fecha_fin: formatISO(endOfDay(endDate)),
       });
       const res = await fetch(`/api/dashboard?${params.toString()}`, { cache: "no-store" });
-      if (!res.ok) throw new Error("Error fetching dashboard data");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const msg = body?.error || res.statusText || "Error fetching dashboard data";
+        throw new Error(msg);
+      }
       return res.json();
     },
   });
 
-  const dataset: ApiResponse = data && !isError ? data : generateDemoData(startDate, endDate);
-  const kpis = dataset.kpis;
-  const series = dataset.series;
-  const closers = useMemo(() => (dataset.closers ?? []).map((c) => ({
+  const dataset: ApiResponse | undefined = data && !isError ? data : undefined;
+  const kpis = dataset?.kpis;
+  const series = dataset?.series ?? [];
+  const closers = useMemo(() => (dataset?.closers ?? []).map((c) => ({
     ...c,
     tasa_cierre: c.llamadas_tomadas ? (c.cierres / c.llamadas_tomadas) * 100 : 0,
   })), [dataset]);
-  const events = dataset.events ?? [];
+  const events = dataset?.events ?? [];
 
   return (
     <div className="min-h-screen w-full bg-neutral-950 text-neutral-100 px-6 sm:px-8 py-8">
@@ -178,11 +182,16 @@ export default function Home() {
             <div className="h-96 bg-neutral-900 rounded-md" />
           </div>
         </div>
+      ) : isError ? (
+        <div className="space-y-3">
+          <div className="text-red-400">No se pudieron cargar los datos.</div>
+          <pre className="bg-neutral-950 border border-neutral-800 rounded-md p-3 text-sm text-red-300 whitespace-pre-wrap">
+            {(error as Error)?.message}
+          </pre>
+        </div>
       ) : (
         <>
-          <div className="mb-4 flex items-center gap-2">
-            {isError && <Badge variant="secondary" className="bg-amber-500/20 text-amber-300 border-amber-500/30">Mostrando datos de demostración</Badge>}
-          </div>
+          <div className="mb-4 flex items-center gap-2" />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader>
@@ -264,6 +273,55 @@ export default function Home() {
                       <Legend />
                       <Bar dataKey="llamadas_tomadas" name="Llamadas Tomadas" stackId="a" fill="#60a5fa" />
                       <Bar dataKey="cierres" name="Cierres" stackId="a" fill="#34d399" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800">
+              <CardHeader>
+                <CardTitle className="text-white">Top Anuncios por Cierres</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Anuncio</TableHead>
+                        <TableHead>Cierres</TableHead>
+                        <TableHead>Facturación</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {series.slice(0, 7).map((d, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="text-white">{"anuncio_" + (i + 1)}</TableCell>
+                          <TableCell className="text-white">{d.cierres}</TableCell>
+                          <TableCell className="text-white">{currency(d.facturacion)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800">
+              <CardHeader>
+                <CardTitle className="text-white">Cierres por Día</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-80">
+                  <ResponsiveContainer>
+                    <BarChart data={series}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#262626" />
+                      <XAxis dataKey="fecha" stroke="#9ca3af" />
+                      <YAxis stroke="#9ca3af" />
+                      <Tooltip contentStyle={{ background: "#0a0a0a", border: "1px solid #262626" }} />
+                      <Bar dataKey="cierres" name="Cierres" fill="#a78bfa" />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
