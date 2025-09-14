@@ -186,19 +186,19 @@ export default function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader>
-                <CardTitle>Facturación Total</CardTitle>
+                <CardTitle className="text-white">Facturación Total</CardTitle>
               </CardHeader>
               <CardContent className="text-2xl font-semibold text-cyan-300">{currency(kpis?.total_facturacion || 0)}</CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-[#160e1f] to-[#0e0b19] border border-[#3a214b] shadow-[0_0_0_1px_rgba(168,85,247,0.15),0_10px_40px_-10px_rgba(168,85,247,0.3)]">
               <CardHeader>
-                <CardTitle>Gasto Total en Ads</CardTitle>
+                <CardTitle className="text-white">Gasto Total en Ads</CardTitle>
               </CardHeader>
               <CardContent className="text-2xl font-semibold text-fuchsia-300">{currency(kpis?.total_gasto_ads || 0)}</CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
               <CardHeader>
-                <CardTitle>Tasa de Cierre</CardTitle>
+                <CardTitle className="text-white">Tasa de Cierre</CardTitle>
               </CardHeader>
               <CardContent className="text-2xl font-semibold text-emerald-300">
                 {(() => {
@@ -211,7 +211,7 @@ export default function Home() {
             </Card>
             <Card className="bg-gradient-to-br from-[#0b1420] to-[#0a0f18] border border-[#1b2a40] shadow-[0_0_0_1px_rgba(59,130,246,0.12),0_10px_40px_-10px_rgba(59,130,246,0.25)]">
               <CardHeader>
-                <CardTitle>Llamadas Tomadas</CardTitle>
+                <CardTitle className="text-white">Llamadas Tomadas</CardTitle>
               </CardHeader>
               <CardContent className="text-2xl font-semibold text-blue-300">{kpis?.total_llamadas_tomadas ?? 0}</CardContent>
             </Card>
@@ -220,7 +220,7 @@ export default function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800">
               <CardHeader>
-                <CardTitle>Rendimiento Financiero</CardTitle>
+                <CardTitle className="text-white">Rendimiento Financiero</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-80">
@@ -251,7 +251,7 @@ export default function Home() {
 
             <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800">
               <CardHeader>
-                <CardTitle>Volumen de Llamadas</CardTitle>
+                <CardTitle className="text-white">Volumen de Llamadas</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-80">
@@ -274,7 +274,7 @@ export default function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800">
               <CardHeader>
-                <CardTitle>Leaderboard de Closers</CardTitle>
+                <CardTitle className="text-white">Leaderboard de Closers</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
@@ -306,7 +306,7 @@ export default function Home() {
 
             <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800">
               <CardHeader>
-                <CardTitle>Llamadas Recientes</CardTitle>
+                <CardTitle className="text-white">Llamadas Recientes</CardTitle>
               </CardHeader>
               <CardContent>
                 <Accordion type="single" collapsible className="w-full">
