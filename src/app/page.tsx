@@ -348,8 +348,6 @@ export default function Home() {
                 </div>
               </CardContent>
             </Card>
-          </div>
-
 
           <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800 mb-8">
             <CardHeader>
