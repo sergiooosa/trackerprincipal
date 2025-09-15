@@ -166,7 +166,16 @@ export async function GET(req: NextRequest) {
           }
         : null;
 
-      const adsByOrigin = adsByOriginRows.map((r: any) => ({
+      type AdsByOriginRow = {
+        anuncio_origen: string;
+        agendas: number | string | null;
+        cierres: number | string | null;
+        facturacion: number | string | null;
+        cash_collected: number | string | null;
+        spend_allocated: number | string | null;
+      };
+
+      const adsByOrigin = (adsByOriginRows as AdsByOriginRow[]).map((r) => ({
         anuncio_origen: r.anuncio_origen,
         agendas: Number(r.agendas) || 0,
         cierres: Number(r.cierres) || 0,

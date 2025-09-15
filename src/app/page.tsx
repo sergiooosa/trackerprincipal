@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+//
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 type ApiResponse = {
@@ -73,47 +73,7 @@ function currency(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value || 0);
 }
 
-function generateDemoData(start: Date, end: Date): ApiResponse {
-  const days: string[] = [];
-  const msPerDay = 24 * 60 * 60 * 1000;
-  for (let t = startOfDay(start).getTime(); t <= endOfDay(end).getTime(); t += msPerDay) {
-    days.push(format(new Date(t), "yyyy-MM-dd"));
-  }
-  const series = days.map((d, i) => {
-    const fact = 500 + Math.sin(i / 2) * 200 + i * 20;
-    const gasto = 300 + Math.cos(i / 3) * 120 + i * 10;
-    const llamadas = Math.round(20 + Math.sin(i) * 8 + i * 0.5);
-    const cierres = Math.max(0, Math.round(llamadas * (0.25 + Math.sin(i / 4) * 0.05)));
-    return { fecha: d, facturacion: Math.max(0, Math.round(fact)), gasto_ads: Math.max(0, Math.round(gasto)), llamadas_tomadas: llamadas, cierres };
-  });
-  const total_facturacion = series.reduce((s, x) => s + x.facturacion, 0);
-  const total_gasto_ads = series.reduce((s, x) => s + x.gasto_ads, 0);
-  const total_llamadas_tomadas = series.reduce((s, x) => s + x.llamadas_tomadas, 0);
-  const total_cierres = series.reduce((s, x) => s + x.cierres, 0);
-  const closers = ["Alex", "Sam", "Jordan", "Taylor"].map((name, idx) => {
-    const llamadas = 20 + idx * 7;
-    const cierres = Math.round(llamadas * (0.3 - idx * 0.03));
-    const fact = cierres * (900 + idx * 150);
-    return { closer: name, llamadas_tomadas: llamadas, cierres, facturacion_generada: fact };
-  }).sort((a, b) => b.facturacion_generada - a.facturacion_generada);
-  const events = series.slice().reverse().slice(0, 12).map((d, i) => {
-    const date = new Date(start.getTime() + i * msPerDay + 15 * 60 * 1000);
-    return {
-      id_evento: `demo-${i}`,
-      fecha_hora_evento: date.toISOString(),
-      closer: closers[i % closers.length].closer,
-      facturacion: i % 3 === 0 ? 1200 + i * 50 : 0,
-      anuncio_origen: ["Meta Ads", "Google Ads", "YouTube", "Orgánico"][i % 4],
-      resumen_ia: "Resumen IA de ejemplo: llamada centrada en valor, manejo de objeciones y cierre propuesto.",
-    };
-  });
-  return {
-    kpis: { total_facturacion, total_gasto_ads, total_llamadas_tomadas, total_cierres },
-    series,
-    closers,
-    events,
-  };
-}
+// Datos de demo eliminados: ya no se usan.
 
 export default function Home() {
   const today = new Date();
