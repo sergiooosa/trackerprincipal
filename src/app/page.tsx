@@ -318,7 +318,7 @@ export default function Home() {
             </Card>
             <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800">
               <CardHeader><CardTitle className="text-white">CTR</CardTitle></CardHeader>
-              <CardContent className="text-xl text-cyan-300">{((data?.adsKpis?.ctr_pct ?? 0)).toFixed(2)}%</CardContent>
+              <CardContent className="text-xl text-cyan-300">{Number(data?.adsKpis?.ctr_pct ?? 0).toFixed(2)}%</CardContent>
             </Card>
             <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800">
               <CardHeader><CardTitle className="text-white">VSL PLAY RATE %</CardTitle></CardHeader>

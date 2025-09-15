@@ -140,6 +140,41 @@ export async function GET(req: NextRequest) {
         client.query(adsByOriginQuery, params),
       ]);
 
+      const adsKpisRow = adsKpisRes.rows[0] ?? null;
+      const callsKpisRow = callsKpisRes.rows[0] ?? null;
+      const adsByOriginRows = adsByOriginRes.rows ?? [];
+
+      const adsKpis = adsKpisRow
+        ? {
+            spend: Number(adsKpisRow.spend) || 0,
+            impresiones: Number(adsKpisRow.impresiones) || 0,
+            clicks: Number(adsKpisRow.clicks) || 0,
+            ctr_pct: Number(adsKpisRow.ctr_pct) || 0,
+            vsl_play_rate: Number(adsKpisRow.vsl_play_rate) || 0,
+            vsl_engagement: Number(adsKpisRow.vsl_engagement) || 0,
+            reuniones_agendadas: Number(adsKpisRow.reuniones_agendadas) || 0,
+          }
+        : null;
+
+      const callsKpis = callsKpisRow
+        ? {
+            reuniones_asistidas: Number(callsKpisRow.reuniones_asistidas) || 0,
+            reuniones_calificadas: Number(callsKpisRow.reuniones_calificadas) || 0,
+            llamadas_cerradas: Number(callsKpisRow.llamadas_cerradas) || 0,
+            facturacion: Number(callsKpisRow.facturacion) || 0,
+            fees: Number(callsKpisRow.fees) || 0,
+          }
+        : null;
+
+      const adsByOrigin = adsByOriginRows.map((r: any) => ({
+        anuncio_origen: r.anuncio_origen,
+        agendas: Number(r.agendas) || 0,
+        cierres: Number(r.cierres) || 0,
+        facturacion: Number(r.facturacion) || 0,
+        cash_collected: Number(r.cash_collected) || 0,
+        spend_allocated: Number(r.spend_allocated) || 0,
+      }));
+
       return NextResponse.json({
         kpis: kpiRes.rows[0] ?? {
           total_facturacion: 0,
@@ -150,9 +185,9 @@ export async function GET(req: NextRequest) {
         series: seriesRes.rows,
         closers: closersRes.rows,
         events: eventsRes.rows,
-        adsKpis: adsKpisRes.rows[0] ?? null,
-        callsKpis: callsKpisRes.rows[0] ?? null,
-        adsByOrigin: adsByOriginRes.rows,
+        adsKpis,
+        callsKpis,
+        adsByOrigin,
       });
     } finally {
       client.release();
