@@ -59,6 +59,9 @@ export async function GET(req: NextRequest) {
         id_evento,
         fecha_hora_evento,
         closer,
+        cliente,
+        categoria,
+        cash_collected,
         facturacion,
         anuncio_origen,
         resumen_ia
@@ -67,15 +70,74 @@ export async function GET(req: NextRequest) {
       ORDER BY fecha_hora_evento DESC;
     `;
 
+    const adsKpisQuery = `
+      SELECT
+        COALESCE(SUM(gasto_total_ad),0) AS spend,
+        COALESCE(SUM(impresiones_totales),0) AS impresiones,
+        COALESCE(SUM(clicks_unicos),0) AS clicks,
+        CASE WHEN COALESCE(SUM(impresiones_totales),0)=0 THEN 0
+             ELSE (COALESCE(SUM(clicks_unicos),0)::decimal / SUM(impresiones_totales)) * 100
+        END AS ctr_pct,
+        COALESCE(AVG(play_rate),0) AS vsl_play_rate,
+        COALESCE(AVG(engagement),0) AS vsl_engagement,
+        COALESCE(SUM(agendamientos),0) AS reuniones_agendadas
+      FROM resumenes_diarios_ads
+      WHERE id_cuenta = $1 AND fecha BETWEEN $2 AND $3;
+    `;
+
+    const callsKpisQuery = `
+      SELECT
+        COALESCE(SUM(llamadas_tomadas),0) AS reuniones_asistidas,
+        COALESCE(SUM(llamadas_ofertadas),0) AS reuniones_calificadas,
+        COALESCE(SUM(cierres),0) AS llamadas_cerradas,
+        COALESCE(SUM(facturacion_total),0) AS facturacion,
+        COALESCE(SUM(fees),0) AS fees
+      FROM resumenes_diarios_llamadas
+      WHERE id_cuenta = $1 AND fecha BETWEEN $2 AND $3;
+    `;
+
+    const adsByOriginQuery = `
+      WITH e AS (
+        SELECT
+          anuncio_origen,
+          COUNT(*) AS agendas,
+          SUM(CASE WHEN facturacion > 0 THEN 1 ELSE 0 END) AS cierres,
+          SUM(facturacion) AS facturacion,
+          SUM(cash_collected) AS cash_collected
+        FROM eventos_llamadas_tiempo_real
+        WHERE id_cuenta = $1 AND fecha_hora_evento BETWEEN $2 AND $3
+        GROUP BY anuncio_origen
+      ), tot AS (
+        SELECT COALESCE(SUM(agendas),0) AS total_agendas FROM e
+      ), spend AS (
+        SELECT COALESCE(SUM(gasto_total_ad),0) AS total_spend
+        FROM resumenes_diarios_ads WHERE id_cuenta = $1 AND fecha BETWEEN $2 AND $3
+      )
+      SELECT
+        e.anuncio_origen,
+        e.agendas,
+        e.cierres,
+        e.facturacion,
+        e.cash_collected,
+        CASE WHEN tot.total_agendas = 0 THEN 0
+             ELSE spend.total_spend * (e.agendas::decimal / tot.total_agendas)
+        END AS spend_allocated
+      FROM e, tot, spend
+      ORDER BY e.cierres DESC, e.facturacion DESC;
+    `;
+
     const params = [idCuenta, fechaInicio, fechaFin];
 
     const client = await pool.connect();
     try {
-      const [kpiRes, seriesRes, closersRes, eventsRes] = await Promise.all([
+      const [kpiRes, seriesRes, closersRes, eventsRes, adsKpisRes, callsKpisRes, adsByOriginRes] = await Promise.all([
         client.query(kpiQuery, params),
         client.query(seriesQuery, params),
         client.query(closerQuery, params),
         client.query(eventsQuery, params),
+        client.query(adsKpisQuery, params),
+        client.query(callsKpisQuery, params),
+        client.query(adsByOriginQuery, params),
       ]);
 
       return NextResponse.json({
@@ -88,6 +150,9 @@ export async function GET(req: NextRequest) {
         series: seriesRes.rows,
         closers: closersRes.rows,
         events: eventsRes.rows,
+        adsKpis: adsKpisRes.rows[0] ?? null,
+        callsKpis: callsKpisRes.rows[0] ?? null,
+        adsByOrigin: adsByOriginRes.rows,
       });
     } finally {
       client.release();
