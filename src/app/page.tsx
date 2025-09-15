@@ -251,7 +251,7 @@ export default function Home() {
             </Card>
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
               <CardHeader><CardTitle className="text-white">Cash Collected</CardTitle></CardHeader>
-              <CardContent className="text-2xl font-semibold text-emerald-300">{currency((data?.events ?? []).reduce((s,e)=> s + (e.cash_collected ?? 0), 0))}</CardContent>
+              <CardContent className="text-2xl font-semibold text-emerald-300">{currency(data?.callsKpis?.fees || 0)}</CardContent>
             </Card>
             
             <Card className="bg-gradient-to-br from-[#0b1420] to-[#0a0f18] border border-[#1b2a40] shadow-[0_0_0_1px_rgba(59,130,246,0.12),0_10px_40px_-10px_rgba(59,130,246,0.25)]">
@@ -424,7 +424,7 @@ export default function Home() {
             </Card>
           </div>
 
-          <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800">
+          <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800 mb-8">
             <CardHeader>
               <CardTitle className="text-white">Leaderboard de Closers</CardTitle>
             </CardHeader>
