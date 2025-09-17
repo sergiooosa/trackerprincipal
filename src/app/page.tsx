@@ -349,9 +349,9 @@ export default function Home() {
               </CardContent>
             </Card>
 
-          <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800 mb-8">
+          <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800 mb-8 transition-all duration-300 hover:shadow-[0_0_0_1px_rgba(56,189,248,0.25),0_20px_60px_-15px_rgba(56,189,248,0.35)]">
             <CardHeader>
-              <CardTitle className="text-white">Top Anuncios por Cierres</CardTitle>
+              <CardTitle className="text-white">Top Cierres por Fuentes</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -422,7 +422,7 @@ export default function Home() {
             </Card>
           </div>
 
-          <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800 mb-8">
+          <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800 mb-8 transition-all duration-300 hover:shadow-[0_0_0_1px_rgba(56,189,248,0.25),0_20px_60px_-15px_rgba(56,189,248,0.35)]">
             <CardHeader>
               <CardTitle className="text-white">Leaderboard de Closers</CardTitle>
             </CardHeader>
@@ -432,7 +432,7 @@ export default function Home() {
                   const calls = (events || []).filter((e) => e.closer === c.closer);
                   return (
                     <AccordionItem key={c.closer} value={c.closer}>
-                      <AccordionTrigger>
+                      <AccordionTrigger className="hover:bg-neutral-800/40 rounded-lg transition-all duration-300">
                         <div className="flex w-full items-center justify-between">
                           <div className="flex items-center gap-3">
                             <div className="size-2 rounded-full bg-emerald-400 shadow-[0_0_12px_2px_rgba(16,185,129,0.7)]" />
@@ -469,20 +469,26 @@ export default function Home() {
                                 <TableRow key={e.id_evento}>
                                   <TableCell className="text-white">{new Date(e.fecha_hora_evento).toLocaleString()}</TableCell>
                                   <TableCell className="text-white">{e.cliente ?? "—"}</TableCell>
-                                  <TableCell className="text-white">{e.categoria?.toLowerCase().includes("show") ? "Sí" : "—"}</TableCell>
-                                  <TableCell className="text-white">{e.categoria?.toLowerCase().includes("oferta") ? "Sí" : "—"}</TableCell>
-                                  <TableCell className="text-white">{(e.facturacion ?? 0) > 0 ? "Sí" : "No"}</TableCell>
+                                  <TableCell className="text-white">{(() => { const ok = e.categoria?.toLowerCase().includes("show"); return <span className="inline-flex items-center"><span className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-[10px] font-semibold border ${ok ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40" : "bg-red-500/20 text-red-300 border-red-400/40"}`}>{ok ? "Sí" : "No"}</span></span>; })()}</TableCell>
+                                  <TableCell className="text-white">{(() => { const ok = e.categoria?.toLowerCase().includes("oferta"); return <span className="inline-flex items-center"><span className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-[10px] font-semibold border ${ok ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40" : "bg-red-500/20 text-red-300 border-red-400/40"}`}>{ok ? "Sí" : "No"}</span></span>; })()}</TableCell>
+                                  <TableCell className="text-white">{(() => { const ok = (e.facturacion ?? 0) > 0; return <span className="inline-flex items-center"><span className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-[10px] font-semibold border ${ok ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40" : "bg-red-500/20 text-red-300 border-red-400/40"}`}>{ok ? "Sí" : "No"}</span></span>; })()}</TableCell>
                                   <TableCell className="text-white">{currency(e.cash_collected ?? 0)}</TableCell>
                                   <TableCell className="text-white">{currency(e.facturacion ?? 0)}</TableCell>
                                   <TableCell className="text-white">
-                                    <Accordion type="single" collapsible>
-                                      <AccordionItem value="nota">
-                                        <AccordionTrigger>Ver notas</AccordionTrigger>
-                                        <AccordionContent>
-                                          <div className="text-neutral-200 whitespace-pre-wrap">{e.resumen_ia ?? "Sin resumen"}</div>
-                                        </AccordionContent>
-                                      </AccordionItem>
-                                    </Accordion>
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <Button variant="outline" className="bg-neutral-900 border-neutral-800 text-neutral-200 hover:border-cyan-400/40 hover:text-cyan-300">Ver notas</Button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="bg-neutral-950 border-neutral-800 text-neutral-200 w-96">
+                                        <div className="space-y-2">
+                                          <div className="text-sm"><span className="text-neutral-400">Lead:</span> {e.cliente ?? '—'}</div>
+                                          <div className="text-sm"><span className="text-neutral-400">Closer:</span> {e.closer}</div>
+                                          <div className="text-sm"><span className="text-neutral-400">Fecha:</span> {new Date(e.fecha_hora_evento).toLocaleString()}</div>
+                                          <div className="text-sm"><span className="text-neutral-400">Resumen:</span></div>
+                                          <div className="text-neutral-200 whitespace-pre-wrap max-h-60 overflow-auto rounded-md border border-neutral-800 p-2">{e.resumen_ia ?? 'Sin resumen'}</div>
+                                        </div>
+                                      </PopoverContent>
+                                    </Popover>
                                   </TableCell>
                                 </TableRow>
                               ))}
