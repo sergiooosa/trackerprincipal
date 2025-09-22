@@ -101,6 +101,7 @@ export async function GET(req: NextRequest) {
         SELECT
           anuncio_origen,
           COUNT(*) AS agendas,
+          SUM(CASE WHEN lower(categoria) LIKE '%show%' THEN 1 ELSE 0 END) AS shows,
           SUM(CASE WHEN facturacion > 0 THEN 1 ELSE 0 END) AS cierres,
           SUM(facturacion) AS facturacion,
           SUM(cash_collected) AS cash_collected
@@ -116,6 +117,7 @@ export async function GET(req: NextRequest) {
       SELECT
         e.anuncio_origen,
         e.agendas,
+        e.shows,
         e.cierres,
         e.facturacion,
         e.cash_collected,
@@ -169,6 +171,7 @@ export async function GET(req: NextRequest) {
       type AdsByOriginRow = {
         anuncio_origen: string;
         agendas: number | string | null;
+        shows: number | string | null;
         cierres: number | string | null;
         facturacion: number | string | null;
         cash_collected: number | string | null;
@@ -178,6 +181,7 @@ export async function GET(req: NextRequest) {
       const adsByOrigin = (adsByOriginRows as AdsByOriginRow[]).map((r) => ({
         anuncio_origen: r.anuncio_origen,
         agendas: Number(r.agendas) || 0,
+        shows: Number(r.shows) || 0,
         cierres: Number(r.cierres) || 0,
         facturacion: Number(r.facturacion) || 0,
         cash_collected: Number(r.cash_collected) || 0,

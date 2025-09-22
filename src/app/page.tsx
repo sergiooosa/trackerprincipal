@@ -81,6 +81,7 @@ export default function Home() {
   const defaultEnd = endOfDay(today);
   const [startDate, setStartDate] = useState<Date>(defaultStart);
   const [endDate, setEndDate] = useState<Date>(defaultEnd);
+  const [closerFilter, setCloserFilter] = useState<Record<string, string>>({});
 
   const { data, isLoading, isError, isFetching, error } = useQuery<ApiResponse>({
     queryKey: ["dashboard", startDate?.toISOString(), endDate?.toISOString()],
@@ -180,38 +181,6 @@ export default function Home() {
         <>
           <div className="mb-4 flex items-center gap-2" />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-8">
-            <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
-              <CardHeader>
-                <CardTitle className="text-white">Facturación Total</CardTitle>
-              </CardHeader>
-              <CardContent className="text-2xl font-semibold text-cyan-300">{currency(kpis?.total_facturacion || 0)}</CardContent>
-            </Card>
-            <Card className="bg-gradient-to-br from-[#160e1f] to-[#0e0b19] border border-[#3a214b] shadow-[0_0_0_1px_rgba(168,85,247,0.15),0_10px_40px_-10px_rgba(168,85,247,0.3)]">
-              <CardHeader>
-                <CardTitle className="text-white">Gasto Total en Ads</CardTitle>
-              </CardHeader>
-              <CardContent className="text-2xl font-semibold text-fuchsia-300">{currency(kpis?.total_gasto_ads || 0)}</CardContent>
-            </Card>
-            <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
-              <CardHeader>
-                <CardTitle className="text-white">Tasa de Cierre</CardTitle>
-              </CardHeader>
-              <CardContent className="text-2xl font-semibold text-emerald-300">
-                {(() => {
-                  const totalLlamadas = kpis?.total_llamadas_tomadas || 0;
-                  const totalCierres = kpis?.total_cierres || 0;
-                  const pct = totalLlamadas ? (totalCierres / totalLlamadas) * 100 : 0;
-                  return `${pct.toFixed(1)}%`;
-                })()}
-              </CardContent>
-            </Card>
-            <Card className="bg-gradient-to-br from-[#0b1420] to-[#0a0f18] border border-[#1b2a40] shadow-[0_0_0_1px_rgba(59,130,246,0.12),0_10px_40px_-10px_rgba(59,130,246,0.25)]">
-              <CardHeader>
-                <CardTitle className="text-white">Llamadas Tomadas</CardTitle>
-              </CardHeader>
-              <CardContent className="text-2xl font-semibold text-blue-300">{kpis?.total_llamadas_tomadas ?? 0}</CardContent>
-            </Card>
-            
             <Card className="bg-gradient-to-br from-[#160e1f] to-[#0e0b19] border border-[#3a214b] shadow-[0_0_0_1px_rgba(168,85,247,0.15),0_10px_40px_-10px_rgba(168,85,247,0.3)]">
               <CardHeader><CardTitle className="text-white">Inversión en publicidad</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-fuchsia-300">{currency(data?.adsKpis?.spend || 0)}</CardContent>
@@ -243,11 +212,27 @@ export default function Home() {
             </Card>
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader><CardTitle className="text-white">Reuniones asistidas (show rate)</CardTitle></CardHeader>
-              <CardContent className="text-2xl font-semibold text-cyan-300">{(data?.callsKpis?.reuniones_asistidas ?? 0).toLocaleString()}</CardContent>
+              <CardContent className="text-2xl font-semibold text-cyan-300">{(() => {
+                const shows = data?.callsKpis?.reuniones_asistidas ?? 0;
+                const agendas = data?.adsKpis?.reuniones_agendadas ?? 0;
+                const pct = agendas ? (shows / agendas) * 100 : 0;
+                return `${shows.toLocaleString()} (${pct.toFixed(1)}%)`;
+              })()}</CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
               <CardHeader><CardTitle className="text-white">Llamadas cerradas (close rate)</CardTitle></CardHeader>
-              <CardContent className="text-2xl font-semibold text-emerald-300">{(data?.callsKpis?.llamadas_cerradas ?? 0).toLocaleString()}</CardContent>
+              <CardContent className="text-2xl font-semibold text-emerald-300">{(() => {
+                const sales = data?.callsKpis?.llamadas_cerradas ?? 0;
+                const shows = data?.callsKpis?.reuniones_asistidas ?? 0;
+                const pct = shows ? (sales / shows) * 100 : 0;
+                return `${sales.toLocaleString()} (${pct.toFixed(1)}%)`;
+              })()}</CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
+              <CardHeader>
+                <CardTitle className="text-white">Facturación</CardTitle>
+              </CardHeader>
+              <CardContent className="text-2xl font-semibold text-cyan-300">{currency(data?.callsKpis?.facturacion || 0)}</CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
               <CardHeader><CardTitle className="text-white">Cash Collected</CardTitle></CardHeader>
@@ -351,48 +336,53 @@ export default function Home() {
 
           <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800 mb-8 transition-all duration-300 hover:shadow-[0_0_0_1px_rgba(56,189,248,0.25),0_20px_60px_-15px_rgba(56,189,248,0.35)]">
             <CardHeader>
-              <CardTitle className="text-white">Top Cierres por Fuentes</CardTitle>
+              <CardTitle className="text-white">Resumen por métodos de adquisición</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Anuncio</TableHead>
-                      <TableHead>Cierres</TableHead>
-                      <TableHead>Agendas</TableHead>
+                      <TableHead>Fuente</TableHead>
                       <TableHead>Spend</TableHead>
-                      <TableHead>Show Rate</TableHead>
-                      <TableHead>Facturación</TableHead>
-                      <TableHead>ROAS</TableHead>
+                      <TableHead>Agendas</TableHead>
+                      <TableHead>Show rate</TableHead>
+                      <TableHead>Cierres</TableHead>
+                      <TableHead>Cash collected</TableHead>
+                      <TableHead>Ticket promedio</TableHead>
                       <TableHead>Costo por show</TableHead>
                       <TableHead>Costo por agenda</TableHead>
                       <TableHead>CAC</TableHead>
+                      <TableHead>ROAS</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {(data?.adsByOrigin ?? []).map((row) => {
                       const spend = row.spend_allocated || 0;
+                      const shows = (row as any).shows ? Number((row as any).shows) : 0;
                       const cierres = row.cierres || 0;
                       const agendas = row.agendas || 0;
                       const fact = row.facturacion || 0;
-                      const showRate = agendas ? ((cierres / agendas) * 100).toFixed(1) + "%" : "—";
+                      const showRate = agendas ? ((shows / agendas) * 100).toFixed(1) + "%" : "—";
                       const roas = spend ? (fact / spend).toFixed(2) + "x" : "—";
                       const cpo = agendas ? currency(spend / agendas) : "$0";
-                      const cpshow = cierres ? currency(spend / cierres) : "$0";
+                      const cpshow = shows ? currency(spend / shows) : "$0";
                       const cac = cierres ? currency(spend / cierres) : "$0";
+                      const cash = (row as any).cash_collected ? Number((row as any).cash_collected) : 0;
+                      const ticket = cierres ? currency(cash / cierres) : "$0";
                       return (
                         <TableRow key={row.anuncio_origen} className="hover:bg-neutral-800/40">
                           <TableCell className="text-white">{row.anuncio_origen}</TableCell>
-                          <TableCell className="text-white">{cierres}</TableCell>
-                          <TableCell className="text-white">{agendas}</TableCell>
                           <TableCell className="text-white">{currency(spend)}</TableCell>
+                          <TableCell className="text-white">{agendas}</TableCell>
                           <TableCell className="text-white">{showRate}</TableCell>
-                          <TableCell className="text-white">{currency(fact)}</TableCell>
-                          <TableCell className="text-white">{roas}</TableCell>
+                          <TableCell className="text-white">{cierres}</TableCell>
+                          <TableCell className="text-white">{currency(cash)}</TableCell>
+                          <TableCell className="text-white">{ticket}</TableCell>
                           <TableCell className="text-white">{cpshow}</TableCell>
                           <TableCell className="text-white">{cpo}</TableCell>
                           <TableCell className="text-white">{cac}</TableCell>
+                          <TableCell className="text-white">{roas}</TableCell>
                         </TableRow>
                       );
                     })}
@@ -401,26 +391,7 @@ export default function Home() {
               </div>
             </CardContent>
           </Card>
-
-            <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800">
-              <CardHeader>
-                <CardTitle className="text-white">Cierres por Día</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-80">
-                  <ResponsiveContainer>
-                    <BarChart data={series}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#262626" />
-                      <XAxis dataKey="fecha" stroke="#9ca3af" />
-                      <YAxis stroke="#9ca3af" />
-                      <Tooltip contentStyle={{ background: "#0a0a0a", border: "1px solid #262626" }} />
-                      <Bar dataKey="cierres" name="Cierres" fill="#a78bfa" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+        </div>
 
           <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800 mb-8 transition-all duration-300 hover:shadow-[0_0_0_1px_rgba(56,189,248,0.25),0_20px_60px_-15px_rgba(56,189,248,0.35)]">
             <CardHeader>
@@ -448,7 +419,12 @@ export default function Home() {
                       </AccordionTrigger>
                       <AccordionContent>
                         <div className="mb-3">
-                          <input placeholder="Buscar lead..." className="w-full bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm" />
+                          <input
+                            placeholder="Buscar lead..."
+                            className="w-full bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm placeholder:text-white"
+                            value={closerFilter[c.closer] ?? ''}
+                            onChange={(ev) => setCloserFilter((prev) => ({ ...prev, [c.closer]: ev.target.value }))}
+                          />
                         </div>
                         <div className="overflow-x-auto">
                           <Table>
@@ -465,7 +441,11 @@ export default function Home() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {calls.map((e) => (
+                              {calls.filter((e) => {
+                                const q = (closerFilter[c.closer] ?? '').toLowerCase().trim();
+                                if (!q) return true;
+                                return (e.cliente ?? '').toLowerCase().includes(q);
+                              }).map((e) => (
                                 <TableRow key={e.id_evento}>
                                   <TableCell className="text-white">{new Date(e.fecha_hora_evento).toLocaleString()}</TableCell>
                                   <TableCell className="text-white">{e.cliente ?? "—"}</TableCell>
