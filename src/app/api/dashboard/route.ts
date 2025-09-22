@@ -5,8 +5,8 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
 
-    // Hardcode id_cuenta = 4 as requested
-    const idCuenta = 4;
+    // Hardcode id_cuenta = 1
+    const idCuenta = 1;
 
     const fechaInicio = searchParams.get("fecha_inicio");
     const fechaFin = searchParams.get("fecha_fin");
