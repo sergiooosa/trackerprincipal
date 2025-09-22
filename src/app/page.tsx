@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 //
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -101,7 +102,7 @@ export default function Home() {
   });
 
   const dataset: ApiResponse | undefined = data && !isError ? data : undefined;
-  const kpis = dataset?.kpis;
+  // const kpis = dataset?.kpis; // no se usa ya; KPIs vienen de adsKpis/callsKpis arriba
   const series = dataset?.series ?? [];
   const closers = useMemo(() => (dataset?.closers ?? []).map((c) => ({
     ...c,
@@ -357,9 +358,17 @@ export default function Home() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(data?.adsByOrigin ?? []).map((row) => {
+                      {(data?.adsByOrigin ?? []).map((row: {
+                        anuncio_origen: string;
+                        agendas: number;
+                        cierres: number;
+                        facturacion: number;
+                        cash_collected?: number;
+                        spend_allocated: number;
+                        shows?: number;
+                      }) => {
                       const spend = row.spend_allocated || 0;
-                      const shows = (row as any).shows ? Number((row as any).shows) : 0;
+                      const shows = row.shows ? Number(row.shows) : 0;
                       const cierres = row.cierres || 0;
                       const agendas = row.agendas || 0;
                       const fact = row.facturacion || 0;
@@ -368,7 +377,7 @@ export default function Home() {
                       const cpo = agendas ? currency(spend / agendas) : "$0";
                       const cpshow = shows ? currency(spend / shows) : "$0";
                       const cac = cierres ? currency(spend / cierres) : "$0";
-                      const cash = (row as any).cash_collected ? Number((row as any).cash_collected) : 0;
+                      const cash = row.cash_collected ? Number(row.cash_collected) : 0;
                       const ticket = cierres ? currency(cash / cierres) : "$0";
                       return (
                         <TableRow key={row.anuncio_origen} className="hover:bg-neutral-800/40">
@@ -455,20 +464,27 @@ export default function Home() {
                                   <TableCell className="text-white">{currency(e.cash_collected ?? 0)}</TableCell>
                                   <TableCell className="text-white">{currency(e.facturacion ?? 0)}</TableCell>
                                   <TableCell className="text-white">
-                                    <Popover>
-                                      <PopoverTrigger asChild>
+                                    <Dialog>
+                                      <DialogTrigger asChild>
                                         <Button variant="outline" className="bg-neutral-900 border-neutral-800 text-neutral-200 hover:border-cyan-400/40 hover:text-cyan-300">Ver notas</Button>
-                                      </PopoverTrigger>
-                                      <PopoverContent className="bg-neutral-950 border-neutral-800 text-neutral-200 w-96">
-                                        <div className="space-y-2">
-                                          <div className="text-sm"><span className="text-neutral-400">Lead:</span> {e.cliente ?? '—'}</div>
-                                          <div className="text-sm"><span className="text-neutral-400">Closer:</span> {e.closer}</div>
-                                          <div className="text-sm"><span className="text-neutral-400">Fecha:</span> {new Date(e.fecha_hora_evento).toLocaleString()}</div>
-                                          <div className="text-sm"><span className="text-neutral-400">Resumen:</span></div>
-                                          <div className="text-neutral-200 whitespace-pre-wrap max-h-60 overflow-auto rounded-md border border-neutral-800 p-2">{e.resumen_ia ?? 'Sin resumen'}</div>
+                                      </DialogTrigger>
+                                      <DialogContent className="sm:max-w-[800px] bg-neutral-950 border-neutral-800 text-neutral-100">
+                                        <DialogHeader>
+                                          <DialogTitle>Detalle de la llamada</DialogTitle>
+                                        </DialogHeader>
+                                        <div className="space-y-4">
+                                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                            <div className="text-sm"><span className="text-neutral-400">Lead:</span> {e.cliente ?? '—'}</div>
+                                            <div className="text-sm"><span className="text-neutral-400">Closer:</span> {e.closer}</div>
+                                            <div className="text-sm"><span className="text-neutral-400">Fecha:</span> {new Date(e.fecha_hora_evento).toLocaleString()}</div>
+                                          </div>
+                                          <div>
+                                            <div className="text-sm mb-2"><span className="text-neutral-400">Resumen:</span></div>
+                                            <div className="text-neutral-200 whitespace-pre-wrap max-h-[60vh] overflow-auto rounded-md border border-neutral-800 p-3">{e.resumen_ia ?? 'Sin resumen'}</div>
+                                          </div>
                                         </div>
-                                      </PopoverContent>
-                                    </Popover>
+                                      </DialogContent>
+                                    </Dialog>
                                   </TableCell>
                                 </TableRow>
                               ))}

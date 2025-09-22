@@ -32,7 +32,8 @@ Crear una interfaz futurista, limpia, extremadamente rápida y funcional que per
 - `Accordion` - Para detalles expandibles de closers
 - `Select` - Para filtros y opciones
 - `Calendar` - Para selector de fechas (con fix de hidratación)
-- `Popover` - Para dropdowns del calendario
+- `Popover` - Para dropdowns del calendario (y UI secundaria)
+- `Dialog` - Para modales a pantalla completa (notas de closers)
 - `Button` - Para acciones interactivas
 - `Input` - Para búsqueda de leads
 
@@ -69,7 +70,7 @@ aura-tracker/
 
 #### `resumenes_diarios_llamadas`
 ```sql
-- id_cuenta (int) - ID de la cuenta (hardcodeado a 4)
+- id_cuenta (int) - ID de la cuenta (hardcodeado a 1)
 - fecha (date) - Fecha del resumen
 - facturacion_total (decimal) - Facturación total del día
 - llamadas_tomadas (int) - Número de llamadas atendidas
@@ -111,7 +112,7 @@ aura-tracker/
 **Parámetros requeridos:**
 - `fecha_inicio` (string, formato ISO)
 - `fecha_fin` (string, formato ISO)
-- `id_cuenta` (hardcodeado a 4)
+- `id_cuenta` (hardcodeado a 1)
 
 **Respuesta JSON:**
 ```typescript
@@ -164,8 +165,10 @@ aura-tracker/
   adsByOrigin: Array<{
     anuncio_origen: string,
     agendas: number,
+    shows?: number,
     cierres: number,
     facturacion: number,
+    cash_collected?: number,
     spend_allocated: number
   }>
 }
@@ -222,7 +225,7 @@ costo_por_show = gasto_publicidad / reuniones_asistidas
 cac = gasto_publicidad / llamadas_cerradas
 
 // Show Rate (por anuncio)
-show_rate = (cierres / agendas) * 100
+show_rate = (shows / agendas) * 100
 ```
 
 ### Mapeo de Datos Importante
@@ -244,7 +247,7 @@ show_rate = (cierres / agendas) * 100
 ```typescript
 const [startDate, setStartDate] = useState<Date>() // Fecha inicio
 const [endDate, setEndDate] = useState<Date>()     // Fecha fin
-const [closerSearchTerm, setCloserSearchTerm] = useState("") // Búsqueda closers
+const [closerFilter, setCloserFilter] = useState<Record<string, string>>({}) // Filtro por lead por closer
 ```
 
 ## 🐛 Problemas Conocidos y Soluciones
