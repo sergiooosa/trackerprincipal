@@ -70,7 +70,7 @@ aura-tracker/
 
 #### `resumenes_diarios_llamadas`
 ```sql
-- id_cuenta (int) - ID de la cuenta (hardcodeado a 1)
+- id_cuenta (int) - ID de la cuenta (por defecto 2)
 - fecha (date) - Fecha del resumen
 - facturacion_total (decimal) - Facturación total del día
 - llamadas_tomadas (int) - Número de llamadas atendidas
@@ -112,7 +112,8 @@ aura-tracker/
 **Parámetros requeridos:**
 - `fecha_inicio` (string, formato ISO)
 - `fecha_fin` (string, formato ISO)
-- `id_cuenta` (hardcodeado a 1)
+- `id_cuenta` (por defecto 2 si no se envía)
+- `tz` (zona horaria; por defecto `America/Bogota`)
 
 **Respuesta JSON:**
 ```typescript
@@ -237,7 +238,13 @@ show_rate = (shows / agendas) * 100
 ## 🔄 Gestión de Estado
 
 ### React Query
-- **Query Key**: `["dashboard", startDate.toISOString(), endDate.toISOString()]`
+- **Query Key**: `[
+  "dashboard",
+  "id:2",
+  "tz:America/Bogota",
+  startDate.toISOString(),
+  endDate.toISOString()
+]`
 - **Cache time**: Defecto de React Query
 - **Refetch**: Automático al cambiar fechas
 - **Error handling**: Muestra mensaje de error en UI

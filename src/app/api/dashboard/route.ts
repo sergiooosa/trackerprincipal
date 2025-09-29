@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
 
     // id_cuenta y zona horaria (por defecto Bogota)
-    const idCuenta = parseInt(searchParams.get("id_cuenta") || "1", 10);
+    const idCuenta = parseInt(searchParams.get("id_cuenta") || "2", 10);
     const tz = searchParams.get("tz") || "America/Bogota";
 
     const fechaInicio = searchParams.get("fecha_inicio");

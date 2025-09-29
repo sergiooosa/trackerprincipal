@@ -85,11 +85,13 @@ export default function Home() {
   const [closerFilter, setCloserFilter] = useState<Record<string, string>>({});
 
   const { data, isLoading, isError, isFetching, error } = useQuery<ApiResponse>({
-    queryKey: ["dashboard", startDate?.toISOString(), endDate?.toISOString()],
+    queryKey: ["dashboard", "id:2", "tz:America/Bogota", startDate?.toISOString(), endDate?.toISOString()],
     queryFn: async () => {
       const params = new URLSearchParams({
         fecha_inicio: formatISO(startOfDay(startDate)),
         fecha_fin: formatISO(endOfDay(endDate)),
+        id_cuenta: "2",
+        tz: "America/Bogota",
       });
       const res = await fetch(`/api/dashboard?${params.toString()}`, { cache: "no-store" });
       if (!res.ok) {
