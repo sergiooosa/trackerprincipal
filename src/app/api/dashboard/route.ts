@@ -216,19 +216,20 @@ export async function GET(req: NextRequest) {
       LEFT JOIN resumen_ads a ON TRUE;
     `;
 
-    const params = [idCuenta, fechaInicio, fechaFin, tz];
+    const params3 = [idCuenta, fechaInicio, fechaFin];
+    const params4 = [idCuenta, fechaInicio, fechaFin, tz];
     const hoyParams = [idCuenta, tz];
 
     const client = await pool.connect();
     try {
       const [kpiRes, seriesRes, closersRes, eventsRes, adsKpisRes, callsKpisRes, adsByOriginRes, hoyRes] = await Promise.all([
-        client.query(kpiQuery, params),
-        client.query(seriesQuery, params),
-        client.query(closerQuery, params),
-        client.query(eventsQuery, params),
-        client.query(adsKpisQuery, params),
-        client.query(callsKpisQuery, params),
-        client.query(adsByOriginQuery, params),
+        client.query(kpiQuery, params3),
+        client.query(seriesQuery, params3),
+        client.query(closerQuery, params4),
+        client.query(eventsQuery, params4),
+        client.query(adsKpisQuery, params3),
+        client.query(callsKpisQuery, params3),
+        client.query(adsByOriginQuery, params4),
         client.query(hoyQuery, hoyParams),
       ]);
 
