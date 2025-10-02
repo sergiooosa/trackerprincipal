@@ -308,7 +308,7 @@ export async function GET(req: NextRequest) {
     const client = await pool.connect();
     try {
       const [kpiRes, seriesRes, closersRes, eventsRes, adsKpisRes, callsKpisRes, adsByOriginRes, hoyRes] = await Promise.all([
-        client.query(kpiQuery, params3),
+        client.query(kpiQuery, params4),
         client.query(seriesQuery, params3),
         client.query(closerQuery, params4),
         client.query(eventsQuery, params4),
