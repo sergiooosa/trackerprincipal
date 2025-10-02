@@ -400,7 +400,6 @@ export default function Home() {
               </div>
             </CardContent>
           </Card>
-        </div>
 
           <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800 mb-8 transition-all duration-300 hover:shadow-[0_0_0_1px_rgba(56,189,248,0.25),0_20px_60px_-15px_rgba(56,189,248,0.35)]">
             <CardHeader>
