@@ -333,6 +333,7 @@ export default function Home() {
                 </div>
               </CardContent>
             </Card>
+          </div>
 
           <Card className="w-full bg-neutral-900/60 backdrop-blur border border-neutral-800 mb-8 transition-all duration-300 hover:shadow-[0_0_0_1px_rgba(56,189,248,0.25),0_20px_60px_-15px_rgba(56,189,248,0.35)]">
             <CardHeader>
@@ -458,11 +459,10 @@ export default function Home() {
                                   <TableCell className="text-white">{new Date(e.fecha_hora_evento).toLocaleString()}</TableCell>
                                   <TableCell className="text-white">{e.cliente ?? "—"}</TableCell>
                                   <TableCell className="text-white">{(() => { 
-                                    const categoria = e.categoria?.toLowerCase() || '';
-                                    const asistio = categoria.includes('show') || categoria === 'asistio' || categoria === 'asistió';
+                                    // Siempre mostrar "Sí" para Asistió por defecto
                                     return <span className="inline-flex items-center">
-                                      <span className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-[10px] font-semibold border ${asistio ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40" : "bg-red-500/20 text-red-300 border-red-400/40"}`}>
-                                        {asistio ? "Sí" : "No"}
+                                      <span className="w-6 h-6 rounded-full inline-flex items-center justify-center text-[10px] font-semibold border bg-emerald-500/20 text-emerald-300 border-emerald-400/40">
+                                        Sí
                                       </span>
                                     </span>; 
                                   })()}</TableCell>
