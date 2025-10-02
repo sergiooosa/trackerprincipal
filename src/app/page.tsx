@@ -467,7 +467,8 @@ export default function Home() {
                                   })()}</TableCell>
                                   <TableCell className="text-white">{(() => { 
                                     const categoria = e.categoria?.toLowerCase() || '';
-                                    const ofertado = categoria.includes('oferta') || categoria === 'ofertada';
+                                    const cerrado = categoria === 'cerrada' || (e.facturacion ?? 0) > 0;
+                                    const ofertado = categoria.includes('oferta') || categoria === 'ofertada' || cerrado;
                                     return <span className="inline-flex items-center">
                                       <span className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-[10px] font-semibold border ${ofertado ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40" : "bg-red-500/20 text-red-300 border-red-400/40"}`}>
                                         {ofertado ? "Sí" : "No"}
