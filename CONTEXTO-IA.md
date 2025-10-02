@@ -122,7 +122,20 @@ aura-tracker/
     total_facturacion: number,
     total_gasto_ads: number,
     total_llamadas_tomadas: number,
-    total_cierres: number
+    total_cierres: number,
+    impresiones: number,
+    ctr: number,
+    vsl_play_rate: number,
+    vsl_engagement: number,
+    reuniones_agendadas: number,
+    reuniones_calificadas: number,
+    cash_collected: number,
+    ticket_promedio: number,
+    cac: number,
+    costo_por_agenda_calificada: number,
+    costo_por_show: number,
+    roas: number,
+    no_show: number
   },
   adsKpis: {
     spend: number,
@@ -150,7 +163,10 @@ aura-tracker/
     closer: string,
     llamadas_tomadas: number,
     cierres: number,
-    facturacion_generada: number
+    facturacion_generada: number,
+    cash_collected: number,
+    reuniones_calificadas: number,
+    shows: number
   }>,
   events: Array<{
     id_evento: string,
@@ -202,31 +218,69 @@ aura-tracker/
 
 ## 📊 Fórmulas y Cálculos de KPIs
 
-### KPIs Calculados en Frontend
+### KPIs Calculados en Backend (Query Principal)
+La nueva query principal utiliza CTEs (Common Table Expressions) para calcular todos los KPIs de manera precisa:
+
+```sql
+-- Query principal con CTEs para máxima precisión
+WITH parametros AS (
+  SELECT 
+    2 AS id_cuenta,
+    'America/Bogota' AS zona,
+    (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '6 days' AS desde_fecha,
+    (NOW() AT TIME ZONE 'America/Bogota')::date AS hasta_fecha
+),
+eventos AS (
+  SELECT
+    COUNT(*) AS llamadas_tomadas,
+    COUNT(*) FILTER (WHERE LOWER(categoria) IN ('ofertada', 'cerrada')) AS reuniones_calificadas,
+    COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada') AS llamadas_cerradas,
+    SUM(cash_collected) AS cash_collected,
+    SUM(facturacion) AS facturacion
+  FROM eventos_llamadas_tiempo_real e
+  JOIN parametros p ON e.id_cuenta = p.id_cuenta
+  WHERE (e.fecha_hora_evento AT TIME ZONE p.zona)::date 
+        BETWEEN p.desde_fecha AND p.hasta_fecha
+),
+resumen_llamadas AS (
+  SELECT
+    SUM(llamadas_calendario) AS llamadas_agendadas
+  FROM resumenes_diarios_llamadas r
+  JOIN parametros p ON r.id_cuenta = p.id_cuenta
+  WHERE r.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
+),
+resumen_ads AS (
+  SELECT
+    SUM(gasto_total_ad) AS gasto_total,
+    SUM(impresiones_totales) AS impresiones,
+    ROUND(AVG(ctr), 2) AS ctr,
+    ROUND(AVG(play_rate), 2) AS play_rate,
+    ROUND(AVG(engagement), 2) AS engagement
+  FROM resumenes_diarios_ads a
+  JOIN parametros p ON a.id_cuenta = p.id_cuenta
+  WHERE a.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
+)
+```
+
+### KPIs Calculados Automáticamente
 ```typescript
-// Tasa de Cierre General
-tasa_cierre = (total_cierres / total_llamadas_tomadas) * 100
-
-// CTR (calculado en backend)
-ctr = (clicks_unicos / impresiones_totales) * 100
-
 // Ticket Promedio
-ticket_promedio = facturacion_total / llamadas_cerradas
-
-// ROAS (Return on Ad Spend)
-roas = facturacion_total / gasto_publicidad
-
-// Costo por Agenda Calificada
-costo_por_agenda = gasto_publicidad / reuniones_calificadas
-
-// Costo por Show
-costo_por_show = gasto_publicidad / reuniones_asistidas
+ticket_promedio = facturacion / llamadas_cerradas
 
 // CAC (Customer Acquisition Cost)
-cac = gasto_publicidad / llamadas_cerradas
+cac = gasto_total / llamadas_cerradas
 
-// Show Rate (por anuncio)
-show_rate = (shows / agendas) * 100
+// Costo por Agenda Calificada
+costo_por_agenda_calificada = gasto_total / reuniones_calificadas
+
+// Costo por Show
+costo_por_show = gasto_total / llamadas_tomadas
+
+// ROAS (Return on Ad Spend)
+roas = facturacion / gasto_total
+
+// No Show Rate
+no_show = GREATEST(llamadas_agendadas - llamadas_tomadas, 0)
 ```
 
 ### Mapeo de Datos Importante
@@ -256,6 +310,32 @@ const [startDate, setStartDate] = useState<Date>() // Fecha inicio
 const [endDate, setEndDate] = useState<Date>()     // Fecha fin
 const [closerFilter, setCloserFilter] = useState<Record<string, string>>({}) // Filtro por lead por closer
 ```
+
+## 🚀 Mejoras Implementadas (v2.0)
+
+### 1. Query Principal Optimizada
+- **Implementación**: CTEs (Common Table Expressions) para máxima precisión
+- **Beneficio**: Cálculos exactos de KPIs directamente en la base de datos
+- **Resultado**: Eliminación de discrepancias entre frontend y backend
+
+### 2. Lógica de Categorías Mejorada
+- **Asistió**: `categoria` contiene 'show', 'asistio', o 'asistió'
+- **Ofertado**: `categoria` contiene 'oferta' o es 'ofertada'
+- **Cerrado**: `categoria` es 'cerrada' O `facturacion > 0`
+- **Beneficio**: Detección precisa del estado real de cada llamada
+
+### 3. UI/UX Mejorada
+- **Resumen por métodos**: Ahora ocupa 100% del ancho disponible
+- **Modal de notas**: Márgenes corregidos, scroll interno, altura controlada
+- **Leaderboard**: Estados de llamadas más precisos y visuales mejorados
+
+### 4. KPIs Calculados en Backend
+- **Ticket promedio**: `facturacion / llamadas_cerradas`
+- **CAC**: `gasto_total / llamadas_cerradas`
+- **Costo por agenda calificada**: `gasto_total / reuniones_calificadas`
+- **Costo por show**: `gasto_total / llamadas_tomadas`
+- **ROAS**: `facturacion / gasto_total`
+- **No Show**: `GREATEST(llamadas_agendadas - llamadas_tomadas, 0)`
 
 ## 🐛 Problemas Conocidos y Soluciones
 
@@ -373,6 +453,7 @@ npm run lint         # ESLint
 
 ---
 
-*Última actualización: $(date)*
-*Versión del proyecto: 1.0.0*
+*Última actualización: Diciembre 2024*
+*Versión del proyecto: 2.0.0*
 *Stack: Next.js 15.5.3 + TypeScript + PostgreSQL*
+*Mejoras: Query optimizada con CTEs, lógica de categorías mejorada, UI/UX actualizada*

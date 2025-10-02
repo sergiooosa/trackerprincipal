@@ -19,6 +19,19 @@ type ApiResponse = {
     total_gasto_ads: number;
     total_llamadas_tomadas: number;
     total_cierres: number;
+    impresiones: number;
+    ctr: number;
+    vsl_play_rate: number;
+    vsl_engagement: number;
+    reuniones_agendadas: number;
+    reuniones_calificadas: number;
+    cash_collected: number;
+    ticket_promedio: number;
+    cac: number;
+    costo_por_agenda_calificada: number;
+    costo_por_show: number;
+    roas: number;
+    no_show: number;
   };
   series: Array<{
     fecha: string;
@@ -32,6 +45,9 @@ type ApiResponse = {
     llamadas_tomadas: number;
     cierres: number;
     facturacion_generada: number;
+    cash_collected: number;
+    reuniones_calificadas: number;
+    shows: number;
   }>;
   events: Array<{
     id_evento: string;
@@ -109,6 +125,7 @@ export default function Home() {
   const closers = useMemo(() => (dataset?.closers ?? []).map((c) => ({
     ...c,
     tasa_cierre: c.llamadas_tomadas ? (c.cierres / c.llamadas_tomadas) * 100 : 0,
+    tasa_show: c.reuniones_calificadas ? (c.shows / c.reuniones_calificadas) * 100 : 0,
   })), [dataset]);
   const events = dataset?.events ?? [];
 
@@ -186,38 +203,38 @@ export default function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-8">
             <Card className="bg-gradient-to-br from-[#160e1f] to-[#0e0b19] border border-[#3a214b] shadow-[0_0_0_1px_rgba(168,85,247,0.15),0_10px_40px_-10px_rgba(168,85,247,0.3)]">
               <CardHeader><CardTitle className="text-white">Inversión en publicidad</CardTitle></CardHeader>
-              <CardContent className="text-2xl font-semibold text-fuchsia-300">{currency(data?.adsKpis?.spend || 0)}</CardContent>
+              <CardContent className="text-2xl font-semibold text-fuchsia-300">{currency(data?.kpis?.total_gasto_ads || 0)}</CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-[#0b1420] to-[#0a0f18] border border-[#1b2a40] shadow-[0_0_0_1px_rgba(59,130,246,0.12),0_10px_40px_-10px_rgba(59,130,246,0.25)]">
               <CardHeader><CardTitle className="text-white">Impresiones</CardTitle></CardHeader>
-              <CardContent className="text-2xl font-semibold text-blue-300">{(data?.adsKpis?.impresiones ?? 0).toLocaleString()}</CardContent>
+              <CardContent className="text-2xl font-semibold text-blue-300">{(data?.kpis?.impresiones ?? 0).toLocaleString()}</CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader><CardTitle className="text-white">CTR</CardTitle></CardHeader>
-              <CardContent className="text-2xl font-semibold text-cyan-300">{Number(data?.adsKpis?.ctr_pct ?? 0).toFixed(2)}%</CardContent>
+              <CardContent className="text-2xl font-semibold text-cyan-300">{Number(data?.kpis?.ctr ?? 0).toFixed(2)}%</CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
               <CardHeader><CardTitle className="text-white">VSL PLAY RATE %</CardTitle></CardHeader>
-              <CardContent className="text-2xl font-semibold text-emerald-300">{Number(data?.adsKpis?.vsl_play_rate ?? 0).toFixed(1)}%</CardContent>
+              <CardContent className="text-2xl font-semibold text-emerald-300">{Number(data?.kpis?.vsl_play_rate ?? 0).toFixed(1)}%</CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
               <CardHeader><CardTitle className="text-white">VSL ENGAGEMENT %</CardTitle></CardHeader>
-              <CardContent className="text-2xl font-semibold text-emerald-300">{Number(data?.adsKpis?.vsl_engagement ?? 0).toFixed(1)}%</CardContent>
+              <CardContent className="text-2xl font-semibold text-emerald-300">{Number(data?.kpis?.vsl_engagement ?? 0).toFixed(1)}%</CardContent>
             </Card>
             
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader><CardTitle className="text-white">Reuniones agendadas</CardTitle></CardHeader>
-              <CardContent className="text-2xl font-semibold text-cyan-300">{(data?.adsKpis?.reuniones_agendadas ?? 0).toLocaleString()}</CardContent>
+              <CardContent className="text-2xl font-semibold text-cyan-300">{(data?.kpis?.reuniones_agendadas ?? 0).toLocaleString()}</CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader><CardTitle className="text-white">Reuniones calificadas</CardTitle></CardHeader>
-              <CardContent className="text-2xl font-semibold text-cyan-300">{(data?.callsKpis?.reuniones_calificadas ?? 0).toLocaleString()}</CardContent>
+              <CardContent className="text-2xl font-semibold text-cyan-300">{(data?.kpis?.reuniones_calificadas ?? 0).toLocaleString()}</CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader><CardTitle className="text-white">Reuniones asistidas (show rate)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-cyan-300">{(() => {
-                const shows = data?.callsKpis?.reuniones_asistidas ?? 0;
-                const agendas = data?.adsKpis?.reuniones_agendadas ?? 0;
+                const shows = data?.kpis?.total_llamadas_tomadas ?? 0;
+                const agendas = data?.kpis?.reuniones_agendadas ?? 0;
                 const pct = agendas ? (shows / agendas) * 100 : 0;
                 return `${shows.toLocaleString()} (${pct.toFixed(1)}%)`;
               })()}</CardContent>
@@ -225,8 +242,8 @@ export default function Home() {
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
               <CardHeader><CardTitle className="text-white">Llamadas cerradas (close rate)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-emerald-300">{(() => {
-                const sales = data?.callsKpis?.llamadas_cerradas ?? 0;
-                const shows = data?.callsKpis?.reuniones_asistidas ?? 0;
+                const sales = data?.kpis?.total_cierres ?? 0;
+                const shows = data?.kpis?.total_llamadas_tomadas ?? 0;
                 const pct = shows ? (sales / shows) * 100 : 0;
                 return `${sales.toLocaleString()} (${pct.toFixed(1)}%)`;
               })()}</CardContent>
@@ -235,52 +252,32 @@ export default function Home() {
               <CardHeader>
                 <CardTitle className="text-white">Facturación</CardTitle>
               </CardHeader>
-              <CardContent className="text-2xl font-semibold text-cyan-300">{currency(data?.callsKpis?.facturacion || 0)}</CardContent>
+              <CardContent className="text-2xl font-semibold text-cyan-300">{currency(data?.kpis?.total_facturacion || 0)}</CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
               <CardHeader><CardTitle className="text-white">Cash Collected</CardTitle></CardHeader>
-              <CardContent className="text-2xl font-semibold text-emerald-300">{currency(data?.callsKpis?.fees || 0)}</CardContent>
+              <CardContent className="text-2xl font-semibold text-emerald-300">{currency(data?.kpis?.cash_collected || 0)}</CardContent>
             </Card>
             
             <Card className="bg-gradient-to-br from-[#0b1420] to-[#0a0f18] border border-[#1b2a40] shadow-[0_0_0_1px_rgba(59,130,246,0.12),0_10px_40px_-10px_rgba(59,130,246,0.25)]">
               <CardHeader><CardTitle className="text-white">Ticket promedio</CardTitle></CardHeader>
-              <CardContent className="text-2xl font-semibold text-blue-300">{(() => {
-                const cierres = data?.callsKpis?.llamadas_cerradas ?? 0;
-                const fact = data?.callsKpis?.facturacion ?? 0;
-                return cierres ? currency(fact / cierres) : "$0";
-              })()}</CardContent>
+              <CardContent className="text-2xl font-semibold text-blue-300">{currency(data?.kpis?.ticket_promedio || 0)}</CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-[#160e1f] to-[#0e0b19] border border-[#3a214b] shadow-[0_0_0_1px_rgba(168,85,247,0.15),0_10px_40px_-10px_rgba(168,85,247,0.3)]">
               <CardHeader><CardTitle className="text-white">Costo por agenda calificada</CardTitle></CardHeader>
-              <CardContent className="text-2xl font-semibold text-fuchsia-300">{(() => {
-                const spend = data?.adsKpis?.spend ?? 0;
-                const q = data?.callsKpis?.reuniones_calificadas ?? 0;
-                return q ? currency(spend / q) : "$0";
-              })()}</CardContent>
+              <CardContent className="text-2xl font-semibold text-fuchsia-300">{currency(data?.kpis?.costo_por_agenda_calificada || 0)}</CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-[#160e1f] to-[#0e0b19] border border-[#3a214b] shadow-[0_0_0_1px_rgba(168,85,247,0.15),0_10px_40px_-10px_rgba(168,85,247,0.3)]">
               <CardHeader><CardTitle className="text-white">Costo por show</CardTitle></CardHeader>
-              <CardContent className="text-2xl font-semibold text-fuchsia-300">{(() => {
-                const spend = data?.adsKpis?.spend ?? 0;
-                const shows = data?.callsKpis?.reuniones_asistidas ?? 0;
-                return shows ? currency(spend / shows) : "$0";
-              })()}</CardContent>
+              <CardContent className="text-2xl font-semibold text-fuchsia-300">{currency(data?.kpis?.costo_por_show || 0)}</CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-[#160e1f] to-[#0e0b19] border border-[#3a214b] shadow-[0_0_0_1px_rgba(168,85,247,0.15),0_10px_40px_-10px_rgba(168,85,247,0.3)]">
               <CardHeader><CardTitle className="text-white">Costo por adquisición (CAC)</CardTitle></CardHeader>
-              <CardContent className="text-2xl font-semibold text-fuchsia-300">{(() => {
-                const spend = data?.adsKpis?.spend ?? 0;
-                const sales = data?.callsKpis?.llamadas_cerradas ?? 0;
-                return sales ? currency(spend / sales) : "$0";
-              })()}</CardContent>
+              <CardContent className="text-2xl font-semibold text-fuchsia-300">{currency(data?.kpis?.cac || 0)}</CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
               <CardHeader><CardTitle className="text-white">ROAS</CardTitle></CardHeader>
-              <CardContent className="text-2xl font-semibold text-emerald-300">{(() => {
-                const spend = data?.adsKpis?.spend ?? 0;
-                const fact = data?.callsKpis?.facturacion ?? 0;
-                return spend ? (fact / spend).toFixed(2) + "x" : "—";
-              })()}</CardContent>
+              <CardContent className="text-2xl font-semibold text-emerald-300">{data?.kpis?.roas ? data.kpis.roas.toFixed(2) + "x" : "—"}</CardContent>
             </Card>
           </div>
 
@@ -337,7 +334,7 @@ export default function Home() {
               </CardContent>
             </Card>
 
-          <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800 mb-8 transition-all duration-300 hover:shadow-[0_0_0_1px_rgba(56,189,248,0.25),0_20px_60px_-15px_rgba(56,189,248,0.35)]">
+          <Card className="w-full bg-neutral-900/60 backdrop-blur border border-neutral-800 mb-8 transition-all duration-300 hover:shadow-[0_0_0_1px_rgba(56,189,248,0.25),0_20px_60px_-15px_rgba(56,189,248,0.35)]">
             <CardHeader>
               <CardTitle className="text-white">Resumen por métodos de adquisición</CardTitle>
             </CardHeader>
@@ -460,9 +457,33 @@ export default function Home() {
                                 <TableRow key={e.id_evento}>
                                   <TableCell className="text-white">{new Date(e.fecha_hora_evento).toLocaleString()}</TableCell>
                                   <TableCell className="text-white">{e.cliente ?? "—"}</TableCell>
-                                  <TableCell className="text-white">{(() => { const ok = e.categoria?.toLowerCase().includes("show"); return <span className="inline-flex items-center"><span className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-[10px] font-semibold border ${ok ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40" : "bg-red-500/20 text-red-300 border-red-400/40"}`}>{ok ? "Sí" : "No"}</span></span>; })()}</TableCell>
-                                  <TableCell className="text-white">{(() => { const ok = e.categoria?.toLowerCase().includes("oferta"); return <span className="inline-flex items-center"><span className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-[10px] font-semibold border ${ok ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40" : "bg-red-500/20 text-red-300 border-red-400/40"}`}>{ok ? "Sí" : "No"}</span></span>; })()}</TableCell>
-                                  <TableCell className="text-white">{(() => { const ok = (e.facturacion ?? 0) > 0; return <span className="inline-flex items-center"><span className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-[10px] font-semibold border ${ok ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40" : "bg-red-500/20 text-red-300 border-red-400/40"}`}>{ok ? "Sí" : "No"}</span></span>; })()}</TableCell>
+                                  <TableCell className="text-white">{(() => { 
+                                    const categoria = e.categoria?.toLowerCase() || '';
+                                    const asistio = categoria.includes('show') || categoria === 'asistio' || categoria === 'asistió';
+                                    return <span className="inline-flex items-center">
+                                      <span className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-[10px] font-semibold border ${asistio ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40" : "bg-red-500/20 text-red-300 border-red-400/40"}`}>
+                                        {asistio ? "Sí" : "No"}
+                                      </span>
+                                    </span>; 
+                                  })()}</TableCell>
+                                  <TableCell className="text-white">{(() => { 
+                                    const categoria = e.categoria?.toLowerCase() || '';
+                                    const ofertado = categoria.includes('oferta') || categoria === 'ofertada';
+                                    return <span className="inline-flex items-center">
+                                      <span className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-[10px] font-semibold border ${ofertado ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40" : "bg-red-500/20 text-red-300 border-red-400/40"}`}>
+                                        {ofertado ? "Sí" : "No"}
+                                      </span>
+                                    </span>; 
+                                  })()}</TableCell>
+                                  <TableCell className="text-white">{(() => { 
+                                    const categoria = e.categoria?.toLowerCase() || '';
+                                    const cerrado = categoria === 'cerrada' || (e.facturacion ?? 0) > 0;
+                                    return <span className="inline-flex items-center">
+                                      <span className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-[10px] font-semibold border ${cerrado ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40" : "bg-red-500/20 text-red-300 border-red-400/40"}`}>
+                                        {cerrado ? "Sí" : "No"}
+                                      </span>
+                                    </span>; 
+                                  })()}</TableCell>
                                   <TableCell className="text-white">{currency(e.cash_collected ?? 0)}</TableCell>
                                   <TableCell className="text-white">{currency(e.facturacion ?? 0)}</TableCell>
                                   <TableCell className="text-white">
@@ -470,11 +491,11 @@ export default function Home() {
                                       <DialogTrigger asChild>
                                         <Button variant="outline" className="bg-neutral-900 border-neutral-800 text-neutral-200 hover:border-cyan-400/40 hover:text-cyan-300">Ver notas</Button>
                                       </DialogTrigger>
-                                      <DialogContent className="sm:max-w-[800px] bg-neutral-950 border-neutral-800 text-neutral-100">
+                                      <DialogContent className="sm:max-w-[800px] max-h-[90vh] bg-neutral-950 border-neutral-800 text-neutral-100 mx-4">
                                         <DialogHeader>
                                           <DialogTitle>Detalle de la llamada</DialogTitle>
                                         </DialogHeader>
-                                        <div className="space-y-4">
+                                        <div className="space-y-4 max-h-[70vh] overflow-y-auto">
                                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                             <div className="text-sm"><span className="text-neutral-400">Lead:</span> {e.cliente ?? '—'}</div>
                                             <div className="text-sm"><span className="text-neutral-400">Closer:</span> {e.closer}</div>
@@ -482,7 +503,7 @@ export default function Home() {
                                           </div>
                                           <div>
                                             <div className="text-sm mb-2"><span className="text-neutral-400">Resumen:</span></div>
-                                            <div className="text-neutral-200 whitespace-pre-wrap max-h-[60vh] overflow-auto rounded-md border border-neutral-800 p-3">{e.resumen_ia ?? 'Sin resumen'}</div>
+                                            <div className="text-neutral-200 whitespace-pre-wrap max-h-[50vh] overflow-auto rounded-md border border-neutral-800 p-3">{e.resumen_ia ?? 'Sin resumen'}</div>
                                           </div>
                                         </div>
                                       </DialogContent>

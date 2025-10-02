@@ -19,15 +19,97 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Queries
+    // Query principal con la nueva estructura
     const kpiQuery = `
+      WITH parametros AS (
+        SELECT 
+          $1::int AS id_cuenta,
+          $4::text AS zona,
+          $2::date AS desde_fecha,
+          $3::date AS hasta_fecha
+      ),
+      eventos AS (
+        SELECT
+          COUNT(*) AS llamadas_tomadas,
+          COUNT(*) FILTER (WHERE LOWER(categoria) IN ('ofertada', 'cerrada')) AS reuniones_calificadas,
+          COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada') AS llamadas_cerradas,
+          SUM(cash_collected) AS cash_collected,
+          SUM(facturacion) AS facturacion
+        FROM eventos_llamadas_tiempo_real e
+        JOIN parametros p ON e.id_cuenta = p.id_cuenta
+        WHERE (e.fecha_hora_evento AT TIME ZONE p.zona)::date 
+              BETWEEN p.desde_fecha AND p.hasta_fecha
+      ),
+      resumen_llamadas AS (
+        SELECT
+          SUM(llamadas_calendario) AS llamadas_agendadas
+        FROM resumenes_diarios_llamadas r
+        JOIN parametros p ON r.id_cuenta = p.id_cuenta
+        WHERE r.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
+      ),
+      resumen_ads AS (
+        SELECT
+          SUM(gasto_total_ad) AS gasto_total,
+          SUM(impresiones_totales) AS impresiones,
+          ROUND(AVG(ctr), 2) AS ctr,
+          ROUND(AVG(play_rate), 2) AS play_rate,
+          ROUND(AVG(engagement), 2) AS engagement
+        FROM resumenes_diarios_ads a
+        JOIN parametros p ON a.id_cuenta = p.id_cuenta
+        WHERE a.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
+      )
       SELECT
-        COALESCE(SUM(facturacion_total), 0) AS total_facturacion,
-        (SELECT COALESCE(SUM(gasto_total_ad), 0) FROM resumenes_diarios_ads WHERE id_cuenta = $1 AND fecha BETWEEN $2 AND $3) AS total_gasto_ads,
-        COALESCE(SUM(llamadas_tomadas), 0) AS total_llamadas_tomadas,
-        COALESCE(SUM(cierres), 0) AS total_cierres
-      FROM resumenes_diarios_llamadas
-      WHERE id_cuenta = $1 AND fecha BETWEEN $2::date AND $3::date;
+        COALESCE(a.gasto_total, 0.00) AS total_gasto_ads,
+        COALESCE(a.impresiones, 0) AS impresiones,
+        COALESCE(a.ctr, 0.00) AS ctr,
+        COALESCE(a.play_rate, 0.00) AS vsl_play_rate,
+        COALESCE(a.engagement, 0.00) AS vsl_engagement,
+        COALESCE(l.llamadas_agendadas, 0) AS reuniones_agendadas,
+        COALESCE(e.reuniones_calificadas, 0) AS reuniones_calificadas,
+        COALESCE(e.llamadas_tomadas, 0) AS total_llamadas_tomadas,
+        COALESCE(e.llamadas_cerradas, 0) AS total_cierres,
+        COALESCE(e.facturacion, 0.00) AS total_facturacion,
+        COALESCE(e.cash_collected, 0.00) AS cash_collected,
+
+        -- Ticket promedio
+        CASE 
+          WHEN e.llamadas_cerradas > 0 THEN ROUND(e.facturacion / e.llamadas_cerradas, 2)
+          ELSE 0
+        END AS ticket_promedio,
+
+        -- CAC
+        CASE 
+          WHEN e.llamadas_cerradas > 0 THEN ROUND(a.gasto_total / e.llamadas_cerradas, 2)
+          ELSE 0
+        END AS cac,
+
+        -- Costo por agenda calificada
+        CASE 
+          WHEN e.reuniones_calificadas > 0 THEN ROUND(a.gasto_total / e.reuniones_calificadas, 2)
+          ELSE 0
+        END AS costo_por_agenda_calificada,
+
+        -- Costo por show
+        CASE 
+          WHEN e.llamadas_tomadas > 0 THEN ROUND(a.gasto_total / e.llamadas_tomadas, 2)
+          ELSE 0
+        END AS costo_por_show,
+
+        -- ROAS
+        CASE 
+          WHEN a.gasto_total > 0 THEN ROUND(e.facturacion / a.gasto_total, 2)
+          ELSE 0
+        END AS roas,
+
+        -- No show: agendadas - tomadas
+        GREATEST(
+          COALESCE(l.llamadas_agendadas, 0) - COALESCE(e.llamadas_tomadas, 0),
+          0
+        ) AS no_show
+
+      FROM eventos e
+      LEFT JOIN resumen_llamadas l ON TRUE
+      LEFT JOIN resumen_ads a ON TRUE;
     `;
 
     const seriesQuery = `
@@ -47,10 +129,13 @@ export async function GET(req: NextRequest) {
       SELECT
         closer,
         COUNT(*) AS llamadas_tomadas,
-        SUM(CASE WHEN cash_collected > 0 THEN 1 ELSE 0 END) AS cierres,
-        SUM(facturacion) AS facturacion_generada
+        COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada') AS cierres,
+        SUM(facturacion) AS facturacion_generada,
+        SUM(cash_collected) AS cash_collected,
+        COUNT(*) FILTER (WHERE LOWER(categoria) IN ('ofertada', 'cerrada')) AS reuniones_calificadas,
+        COUNT(*) FILTER (WHERE LOWER(categoria) LIKE '%show%' OR LOWER(categoria) = 'asistio') AS shows
       FROM eventos_llamadas_tiempo_real
-      WHERE id_cuenta = $1 AND (fecha_hora_evento AT TIME ZONE $4) BETWEEN $2 AND $3
+      WHERE id_cuenta = $1 AND (fecha_hora_evento AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date
       GROUP BY closer
       ORDER BY facturacion_generada DESC;
     `;
@@ -67,7 +152,7 @@ export async function GET(req: NextRequest) {
         anuncio_origen,
         resumen_ia
       FROM eventos_llamadas_tiempo_real
-      WHERE id_cuenta = $1 AND (fecha_hora_evento AT TIME ZONE $4) BETWEEN $2 AND $3
+      WHERE id_cuenta = $1 AND (fecha_hora_evento AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date
       ORDER BY fecha_hora_evento DESC;
     `;
 
@@ -102,12 +187,12 @@ export async function GET(req: NextRequest) {
         SELECT
           anuncio_origen,
           COUNT(*) AS agendas,
-          SUM(CASE WHEN lower(categoria) LIKE '%show%' THEN 1 ELSE 0 END) AS shows,
-          SUM(CASE WHEN facturacion > 0 THEN 1 ELSE 0 END) AS cierres,
+          COUNT(*) FILTER (WHERE LOWER(categoria) LIKE '%show%' OR LOWER(categoria) = 'asistio') AS shows,
+          COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada') AS cierres,
           SUM(facturacion) AS facturacion,
           SUM(cash_collected) AS cash_collected
         FROM eventos_llamadas_tiempo_real
-        WHERE id_cuenta = $1 AND (fecha_hora_evento AT TIME ZONE $4) BETWEEN $2 AND $3
+        WHERE id_cuenta = $1 AND (fecha_hora_evento AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date
         GROUP BY anuncio_origen
       ), tot AS (
         SELECT COALESCE(SUM(agendas),0) AS total_agendas FROM e
@@ -307,12 +392,27 @@ export async function GET(req: NextRequest) {
           }
         : null;
 
+      const kpiRow = kpiRes.rows[0] ?? {};
+      
       return NextResponse.json({
-        kpis: kpiRes.rows[0] ?? {
-          total_facturacion: 0,
-          total_gasto_ads: 0,
-          total_llamadas_tomadas: 0,
-          total_cierres: 0,
+        kpis: {
+          total_facturacion: Number(kpiRow.total_facturacion) || 0,
+          total_gasto_ads: Number(kpiRow.total_gasto_ads) || 0,
+          total_llamadas_tomadas: Number(kpiRow.total_llamadas_tomadas) || 0,
+          total_cierres: Number(kpiRow.total_cierres) || 0,
+          impresiones: Number(kpiRow.impresiones) || 0,
+          ctr: Number(kpiRow.ctr) || 0,
+          vsl_play_rate: Number(kpiRow.vsl_play_rate) || 0,
+          vsl_engagement: Number(kpiRow.vsl_engagement) || 0,
+          reuniones_agendadas: Number(kpiRow.reuniones_agendadas) || 0,
+          reuniones_calificadas: Number(kpiRow.reuniones_calificadas) || 0,
+          cash_collected: Number(kpiRow.cash_collected) || 0,
+          ticket_promedio: Number(kpiRow.ticket_promedio) || 0,
+          cac: Number(kpiRow.cac) || 0,
+          costo_por_agenda_calificada: Number(kpiRow.costo_por_agenda_calificada) || 0,
+          costo_por_show: Number(kpiRow.costo_por_show) || 0,
+          roas: Number(kpiRow.roas) || 0,
+          no_show: Number(kpiRow.no_show) || 0,
         },
         series: seriesRes.rows,
         closers: closersRes.rows,
