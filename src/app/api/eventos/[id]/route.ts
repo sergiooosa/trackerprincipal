@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import pool from "@/lib/db";
 
 type PatchBody = {
@@ -7,8 +7,8 @@ type PatchBody = {
   facturacion?: number | null;
 };
 
-export async function PATCH(req: Request, ctx: { params: { id: string } }) {
-  const { id } = ctx.params;
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
 
   if (!id) {
     return NextResponse.json({ error: "Falta id del evento" }, { status: 400 });
