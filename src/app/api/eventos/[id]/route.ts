@@ -22,13 +22,21 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   const categoriaRaw = (json.categoria ?? null);
-  const categoria = categoriaRaw
-    ? String(categoriaRaw).toLowerCase().trim()
+  const categoriaNorm = categoriaRaw
+    ? String(categoriaRaw).toLowerCase().replace(/[_\s]+/g, " ").trim()
     : null;
 
-  // Solo permitir las 3 opciones pedidas
-  const allowed = new Set(["no ofertada", "ofertada", "cerrada"]);
-  const categoriaFinal = categoria && allowed.has(categoria) ? categoria : categoria === null ? null : undefined;
+  // Mapear a valores exactos en BD
+  const categoriaFinal: string | null | undefined =
+    categoriaNorm === null
+      ? null
+      : categoriaNorm === "no ofertada"
+        ? "No_ofertada"
+        : categoriaNorm === "ofertada"
+          ? "Ofertada"
+          : categoriaNorm === "cerrada"
+            ? "Cerrada"
+            : undefined; // si no coincide, no actualizamos la categoría
 
   const cash = typeof json.cash_collected === "number" ? json.cash_collected : json.cash_collected == null ? null : Number(json.cash_collected);
   const fact = typeof json.facturacion === "number" ? json.facturacion : json.facturacion == null ? null : Number(json.facturacion);
