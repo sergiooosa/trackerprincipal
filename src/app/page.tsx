@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format, formatISO, startOfDay, endOfDay } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -10,6 +10,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 //
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -94,6 +95,7 @@ function currency(value: number) {
 // Datos de demo eliminados: ya no se usan.
 
 export default function Home() {
+  const queryClient = useQueryClient();
   const today = new Date();
   const defaultStart = startOfDay(addDays(today, -6));
   const defaultEnd = endOfDay(today);
@@ -491,7 +493,7 @@ export default function Home() {
                                   })()}</TableCell>
                                   <TableCell className="text-white">{currency(e.cash_collected ?? 0)}</TableCell>
                                   <TableCell className="text-white">{currency(e.facturacion ?? 0)}</TableCell>
-                                  <TableCell className="text-white">
+                                  <TableCell className="text-white space-x-2">
                                     <Dialog>
                                       <DialogTrigger asChild>
                                         <Button variant="outline" className="bg-neutral-900 border-neutral-800 text-neutral-200 hover:border-cyan-400/40 hover:text-cyan-300">Ver notas</Button>
@@ -511,6 +513,64 @@ export default function Home() {
                                             <div className="text-neutral-200 whitespace-pre-wrap max-h-[50vh] overflow-auto rounded-md border border-neutral-800 p-3">{e.resumen_ia ?? 'Sin resumen'}</div>
                                           </div>
                                         </div>
+                                      </DialogContent>
+                                    </Dialog>
+
+                                    <Dialog>
+                                      <DialogTrigger asChild>
+                                        <Button variant="outline" className="bg-neutral-900 border-neutral-800 text-neutral-200 hover:border-emerald-400/40 hover:text-emerald-300">Configurar</Button>
+                                      </DialogTrigger>
+                                      <DialogContent className="sm:max-w-[560px] bg-neutral-950 border-neutral-800 text-neutral-100 mx-4">
+                                        <DialogHeader>
+                                          <DialogTitle>Configurar llamada</DialogTitle>
+                                        </DialogHeader>
+                                        <form
+                                          className="space-y-4"
+                                          onSubmit={async (ev) => {
+                                            ev.preventDefault();
+                                            const form = ev.currentTarget as HTMLFormElement;
+                                            const formData = new FormData(form);
+                                            const payload = {
+                                              categoria: String(formData.get('categoria') || '').toLowerCase(),
+                                              cash_collected: formData.get('cash_collected') ? Number(formData.get('cash_collected')) : null,
+                                              facturacion: formData.get('facturacion') ? Number(formData.get('facturacion')) : null,
+                                            };
+                                            await fetch(`/api/eventos/${e.id_evento}`, {
+                                              method: 'PATCH',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify(payload),
+                                            });
+                                            // Refrescar dashboard
+                                            queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+                                            (document.activeElement as HTMLElement)?.click();
+                                          }}
+                                        >
+                                          <div>
+                                            <label className="text-sm text-neutral-300">Categoría</label>
+                                            <select
+                                              name="categoria"
+                                              defaultValue={(e.categoria ?? '').toLowerCase() || 'no ofertada'}
+                                              className="w-full mt-1 bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm"
+                                            >
+                                              <option value="no ofertada">No ofertada</option>
+                                              <option value="ofertada">Ofertada</option>
+                                              <option value="cerrada">Cerrada</option>
+                                            </select>
+                                          </div>
+                                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div>
+                                              <label className="text-sm text-neutral-300">Cash collected</label>
+                                              <Input name="cash_collected" type="number" step="0.01" defaultValue={e.cash_collected ?? 0} className="mt-1" />
+                                            </div>
+                                            <div>
+                                              <label className="text-sm text-neutral-300">Facturación</label>
+                                              <Input name="facturacion" type="number" step="0.01" defaultValue={e.facturacion ?? 0} className="mt-1" />
+                                            </div>
+                                          </div>
+                                          <div className="flex justify-end gap-2 pt-2">
+                                            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-500">Guardar</Button>
+                                          </div>
+                                        </form>
                                       </DialogContent>
                                     </Dialog>
                                   </TableCell>
