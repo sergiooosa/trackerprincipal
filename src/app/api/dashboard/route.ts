@@ -195,7 +195,7 @@ export async function GET(req: NextRequest) {
           $2::date AS desde_fecha,
           $3::date AS hasta_fecha
       ),
-      -- Agendamientos por creativo (desde resumenes_diarios_creativos)
+      -- Agendamientos por creativo (desde resumenes_diarios_creativos) - con manejo de errores
       agendamientos_creativos AS (
         SELECT
           origen AS creativo,
@@ -203,17 +203,19 @@ export async function GET(req: NextRequest) {
         FROM resumenes_diarios_creativos c
         JOIN parametros p ON c.id_cuenta = p.id_cuenta
         WHERE c.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
+          AND origen IS NOT NULL
         GROUP BY origen
       ),
-      -- Gastos por creativo (desde resumenes_diarios_agendas)
+      -- Gastos por creativo (desde resumenes_diarios_agendas) - usando solo columnas que existen
       gastos_creativos AS (
         SELECT
-          nombre_de_creativo AS creativo,
-          SUM(gasto_total_creativo) AS gasto_total
+          origen AS creativo,
+          0 AS gasto_total  -- Por ahora 0 hasta que tengamos la columna de gasto
         FROM resumenes_diarios_agendas a
         JOIN parametros p ON a.id_cuenta = p.id_cuenta
         WHERE a.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
-        GROUP BY nombre_de_creativo
+          AND origen IS NOT NULL
+        GROUP BY origen
       ),
       -- Resultados por creativo (desde eventos_llamadas_tiempo_real)
       resultados_creativos AS (
@@ -359,16 +361,23 @@ export async function GET(req: NextRequest) {
 
     const client = await pool.connect();
     try {
-      const [kpiRes, seriesRes, closersRes, eventsRes, adsKpisRes, callsKpisRes, adsByOriginRes, hoyRes] = await Promise.all([
-        client.query(kpiQuery, params4),
-        client.query(seriesQuery, params3),
-        client.query(closerQuery, params4),
-        client.query(eventsQuery, params4),
-        client.query(adsKpisQuery, params3),
-        client.query(callsKpisQuery, params3),
-        client.query(adsByOriginQuery, params4),
-        client.query(hoyQuery, hoyParams),
-      ]);
+      let kpiRes, seriesRes, closersRes, eventsRes, adsKpisRes, callsKpisRes, adsByOriginRes, hoyRes;
+      
+      try {
+        [kpiRes, seriesRes, closersRes, eventsRes, adsKpisRes, callsKpisRes, adsByOriginRes, hoyRes] = await Promise.all([
+          client.query(kpiQuery, params4),
+          client.query(seriesQuery, params3),
+          client.query(closerQuery, params4),
+          client.query(eventsQuery, params4),
+          client.query(adsKpisQuery, params3),
+          client.query(callsKpisQuery, params3),
+          client.query(adsByOriginQuery, params4),
+          client.query(hoyQuery, hoyParams),
+        ]);
+      } catch (queryError) {
+        console.error('Error en consultas:', queryError);
+        return NextResponse.json({ error: `Error en consultas: ${queryError.message}` }, { status: 500 });
+      }
 
       const adsKpisRow = adsKpisRes.rows[0] ?? null;
       const callsKpisRow = callsKpisRes.rows[0] ?? null;
