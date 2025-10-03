@@ -229,19 +229,29 @@ export async function GET(req: NextRequest) {
               BETWEEN p.desde_fecha AND p.hasta_fecha
         GROUP BY anuncio_origen
       ),
-      -- Combinar todos los datos
+      -- Unir todos los creativos únicos (agendamientos + gastos + resultados)
+      todos_los_creativos AS (
+        SELECT DISTINCT creativo FROM agendamientos_creativos
+        UNION
+        SELECT DISTINCT creativo FROM gastos_creativos
+        UNION
+        SELECT DISTINCT creativo FROM resultados_creativos
+        WHERE creativo IS NOT NULL
+      ),
+      -- Combinar todos los datos por creativo
       datos_completos AS (
         SELECT
-          COALESCE(ac.creativo, gc.creativo, rc.creativo) AS creativo,
+          tc.creativo,
           COALESCE(ac.agendas, 0) AS agendas,
           COALESCE(rc.shows, 0) AS shows,
           COALESCE(rc.cierres, 0) AS cierres,
           COALESCE(rc.facturacion, 0) AS facturacion,
           COALESCE(rc.cash_collected, 0) AS cash_collected,
           COALESCE(gc.gasto_total, 0) AS gasto_total
-        FROM agendamientos_creativos ac
-        FULL OUTER JOIN gastos_creativos gc ON ac.creativo = gc.creativo
-        FULL OUTER JOIN resultados_creativos rc ON COALESCE(ac.creativo, gc.creativo) = rc.creativo
+        FROM todos_los_creativos tc
+        LEFT JOIN agendamientos_creativos ac ON tc.creativo = ac.creativo
+        LEFT JOIN gastos_creativos gc ON tc.creativo = gc.creativo
+        LEFT JOIN resultados_creativos rc ON tc.creativo = rc.creativo
       )
       SELECT
         creativo AS anuncio_origen,
