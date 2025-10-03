@@ -376,7 +376,8 @@ export async function GET(req: NextRequest) {
         ]);
       } catch (queryError) {
         console.error('Error en consultas:', queryError);
-        return NextResponse.json({ error: `Error en consultas: ${queryError.message}` }, { status: 500 });
+        const errorMessage = queryError instanceof Error ? queryError.message : 'Error desconocido en consultas';
+        return NextResponse.json({ error: `Error en consultas: ${errorMessage}` }, { status: 500 });
       }
 
       const adsKpisRow = adsKpisRes.rows[0] ?? null;
