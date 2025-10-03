@@ -473,9 +473,13 @@ export default function Home() {
                                     </span>; 
                                   })()}</TableCell>
                                   <TableCell className="text-white">{(() => { 
-                                    const categoria = e.categoria?.toLowerCase() || '';
-                                    const cerrado = categoria === 'cerrada' || (e.facturacion ?? 0) > 0;
-                                    const ofertado = categoria.includes('oferta') || categoria === 'ofertada' || cerrado;
+                                    const normalized = (e.categoria ?? '')
+                                      .toString()
+                                      .toLowerCase()
+                                      .replace(/[_\s]+/g, ' ')
+                                      .trim();
+                                    const cerrado = normalized === 'cerrada' || (e.facturacion ?? 0) > 0;
+                                    const ofertado = normalized === 'ofertada' || cerrado;
                                     return <span className="inline-flex items-center">
                                       <span className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-[10px] font-semibold border ${ofertado ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40" : "bg-red-500/20 text-red-300 border-red-400/40"}`}>
                                         {ofertado ? "Sí" : "No"}
@@ -483,8 +487,12 @@ export default function Home() {
                                     </span>; 
                                   })()}</TableCell>
                                   <TableCell className="text-white">{(() => { 
-                                    const categoria = e.categoria?.toLowerCase() || '';
-                                    const cerrado = categoria === 'cerrada' || (e.facturacion ?? 0) > 0;
+                                    const normalized = (e.categoria ?? '')
+                                      .toString()
+                                      .toLowerCase()
+                                      .replace(/[_\s]+/g, ' ')
+                                      .trim();
+                                    const cerrado = normalized === 'cerrada' || (e.facturacion ?? 0) > 0;
                                     return <span className="inline-flex items-center">
                                       <span className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-[10px] font-semibold border ${cerrado ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40" : "bg-red-500/20 text-red-300 border-red-400/40"}`}>
                                         {cerrado ? "Sí" : "No"}
