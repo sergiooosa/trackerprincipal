@@ -17,7 +17,7 @@ export async function PATCH(req: Request, ctx: { params: { id: string } }) {
   let json: PatchBody;
   try {
     json = await req.json();
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: "Cuerpo JSON inválido" }, { status: 400 });
   }
 
@@ -35,7 +35,7 @@ export async function PATCH(req: Request, ctx: { params: { id: string } }) {
 
   // Construir SET dinámico en función de lo recibido (permitiendo null explícito)
   const setParts: string[] = [];
-  const values: any[] = [id];
+  const values: (string | number | null)[] = [id];
 
   if (categoriaFinal !== undefined) {
     setParts.push(`categoria = COALESCE($${values.length + 1}, categoria)`);
