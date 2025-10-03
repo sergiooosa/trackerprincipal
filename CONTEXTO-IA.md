@@ -332,7 +332,17 @@ const [closerFilter, setCloserFilter] = useState<Record<string, string>>({}) // 
 - **Botón de fechas**: Colores corregidos para mejor visibilidad (texto blanco)
 - **Doble ROAS**: ROAS de facturación y ROAS de cash collected
 
-### 4. KPIs Calculados en Backend
+### 4. Resumen por Métodos de Adquisición - Lógica Avanzada
+- **Agendamientos**: Desde `resumenes_diarios_agendas.origen` con conteo real
+- **Gastos**: Desde `resumenes_diarios_creativos.nombre_de_creativo` + `gasto_total_creativo`
+- **Cierres**: Con matching por `email_lead` entre tablas para precisión temporal
+- **Lógica de Fechas**: Cierres se reportan en el mes de agendamiento, no de la llamada
+- **Matching por Email**: `resumenes_diarios_agendas.email_lead` = `eventos_llamadas_tiempo_real.email_lead`
+- **Filtrado Inteligente**: Solo muestra creativos con actividad en el rango de fechas
+- **Normalización**: `LOWER(TRIM())` en todos los nombres de creativos para matching perfecto
+- **Manejo de Datos Vacíos**: Compatible con instalaciones desde cero (sin errores)
+
+### 5. KPIs Calculados en Backend
 - **Ticket promedio**: `facturacion / llamadas_cerradas`
 - **CAC**: `gasto_total / llamadas_cerradas`
 - **Costo por agenda calificada**: `gasto_total / reuniones_calificadas`
@@ -458,6 +468,6 @@ npm run lint         # ESLint
 ---
 
 *Última actualización: Diciembre 2024*
-*Versión del proyecto: 2.0.0*
+*Versión del proyecto: 2.1.0*
 *Stack: Next.js 15.5.3 + TypeScript + PostgreSQL*
-*Mejoras: Query optimizada con CTEs, lógica de categorías mejorada, UI/UX actualizada*
+*Mejoras: Resumen por métodos con matching por email, lógica temporal precisa, manejo de datos vacíos*
