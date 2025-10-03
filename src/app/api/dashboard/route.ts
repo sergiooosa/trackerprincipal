@@ -199,13 +199,11 @@ export async function GET(req: NextRequest) {
       agendamientos_creativos AS (
         SELECT
           LOWER(TRIM(origen)) AS creativo,
-          COUNT(*) AS agendas,
-          ARRAY_AGG(DISTINCT LOWER(TRIM(email_lead))) AS emails_agendados
+          COUNT(*) AS agendas
         FROM resumenes_diarios_agendas a
         JOIN parametros p ON a.id_cuenta = p.id_cuenta
         WHERE a.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
           AND origen IS NOT NULL
-          AND email_lead IS NOT NULL
         GROUP BY LOWER(TRIM(origen))
       ),
       -- Gastos por creativo (desde resumenes_diarios_creativos) - gastos reales
@@ -219,36 +217,28 @@ export async function GET(req: NextRequest) {
           AND nombre_de_creativo IS NOT NULL
         GROUP BY LOWER(TRIM(nombre_de_creativo))
       ),
-      -- Cierres por creativo con matching por email y fecha de agendamiento
-      cierres_creativos AS (
+      -- Resultados por creativo (desde eventos_llamadas_tiempo_real) - simplificado
+      resultados_creativos AS (
         SELECT
-          LOWER(TRIM(e.anuncio_origen)) AS creativo,
+          LOWER(TRIM(anuncio_origen)) AS creativo,
           COUNT(*) AS shows,
-          COUNT(*) FILTER (WHERE LOWER(e.categoria) = 'cerrada') AS cierres,
-          SUM(e.facturacion) AS facturacion,
-          SUM(e.cash_collected) AS cash_collected
+          COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada') AS cierres,
+          SUM(facturacion) AS facturacion,
+          SUM(cash_collected) AS cash_collected
         FROM eventos_llamadas_tiempo_real e
         JOIN parametros p ON e.id_cuenta = p.id_cuenta
         WHERE (e.fecha_hora_evento AT TIME ZONE p.zona)::date 
               BETWEEN p.desde_fecha AND p.hasta_fecha
-          AND e.anuncio_origen IS NOT NULL
-          AND e.email_lead IS NOT NULL
-          -- Solo incluir cierres de leads que se agendaron en el rango de fechas
-          AND EXISTS (
-            SELECT 1 FROM resumenes_diarios_agendas a
-            WHERE a.id_cuenta = p.id_cuenta
-              AND LOWER(TRIM(a.email_lead)) = LOWER(TRIM(e.email_lead))
-              AND a.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
-          )
-        GROUP BY LOWER(TRIM(e.anuncio_origen))
+          AND anuncio_origen IS NOT NULL
+        GROUP BY LOWER(TRIM(anuncio_origen))
       ),
-      -- Unir todos los creativos únicos (agendamientos + gastos + cierres)
+      -- Unir todos los creativos únicos (agendamientos + gastos + resultados)
       todos_los_creativos AS (
         SELECT DISTINCT creativo FROM agendamientos_creativos
         UNION
         SELECT DISTINCT creativo FROM gastos_creativos
         UNION
-        SELECT DISTINCT creativo FROM cierres_creativos
+        SELECT DISTINCT creativo FROM resultados_creativos
         WHERE creativo IS NOT NULL
       ),
       -- Combinar todos los datos por creativo
@@ -256,15 +246,15 @@ export async function GET(req: NextRequest) {
         SELECT
           tc.creativo,
           COALESCE(ac.agendas, 0) AS agendas,
-          COALESCE(cc.shows, 0) AS shows,
-          COALESCE(cc.cierres, 0) AS cierres,
-          COALESCE(cc.facturacion, 0) AS facturacion,
-          COALESCE(cc.cash_collected, 0) AS cash_collected,
+          COALESCE(rc.shows, 0) AS shows,
+          COALESCE(rc.cierres, 0) AS cierres,
+          COALESCE(rc.facturacion, 0) AS facturacion,
+          COALESCE(rc.cash_collected, 0) AS cash_collected,
           COALESCE(gc.gasto_total, 0) AS gasto_total
         FROM todos_los_creativos tc
         LEFT JOIN agendamientos_creativos ac ON tc.creativo = ac.creativo
         LEFT JOIN gastos_creativos gc ON tc.creativo = gc.creativo
-        LEFT JOIN cierres_creativos cc ON tc.creativo = cc.creativo
+        LEFT JOIN resultados_creativos rc ON tc.creativo = rc.creativo
       )
       SELECT
         creativo AS anuncio_origen,
@@ -276,7 +266,6 @@ export async function GET(req: NextRequest) {
         gasto_total AS spend_allocated
       FROM datos_completos
       WHERE creativo IS NOT NULL
-        AND (agendas > 0 OR shows > 0 OR cierres > 0)  -- Solo mostrar creativos con actividad
       ORDER BY cierres DESC, facturacion DESC;
     `;
 
