@@ -319,22 +319,26 @@ const [closerFilter, setCloserFilter] = useState<Record<string, string>>({}) // 
 - **Resultado**: Eliminación de discrepancias entre frontend y backend
 
 ### 2. Lógica de Categorías Mejorada
-- **Asistió**: `categoria` contiene 'show', 'asistio', o 'asistió'
-- **Ofertado**: `categoria` contiene 'oferta' o es 'ofertada'
+- **Asistió**: Siempre muestra "Sí" por defecto
+- **Ofertado**: `categoria` contiene 'oferta', es 'ofertada', O está cerrado
 - **Cerrado**: `categoria` es 'cerrada' O `facturacion > 0`
-- **Beneficio**: Detección precisa del estado real de cada llamada
+- **Lógica**: Si está cerrado, automáticamente fue ofertado (no puedes vender sin ofertar)
+- **Beneficio**: Detección precisa del estado real de cada llamada con lógica coherente
 
 ### 3. UI/UX Mejorada
 - **Resumen por métodos**: Ahora ocupa 100% del ancho disponible
 - **Modal de notas**: Márgenes corregidos, scroll interno, altura controlada
 - **Leaderboard**: Estados de llamadas más precisos y visuales mejorados
+- **Botón de fechas**: Colores corregidos para mejor visibilidad (texto blanco)
+- **Doble ROAS**: ROAS de facturación y ROAS de cash collected
 
 ### 4. KPIs Calculados en Backend
 - **Ticket promedio**: `facturacion / llamadas_cerradas`
 - **CAC**: `gasto_total / llamadas_cerradas`
 - **Costo por agenda calificada**: `gasto_total / reuniones_calificadas`
 - **Costo por show**: `gasto_total / llamadas_tomadas`
-- **ROAS**: `facturacion / gasto_total`
+- **ROAS (Facturación)**: `facturacion / gasto_total`
+- **ROAS (Cash Collected)**: `cash_collected / gasto_total`
 - **No Show**: `GREATEST(llamadas_agendadas - llamadas_tomadas, 0)`
 
 ## 🐛 Problemas Conocidos y Soluciones

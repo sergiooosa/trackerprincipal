@@ -160,7 +160,7 @@ export default function Home() {
           </Select>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="bg-neutral-900 border-neutral-800 text-neutral-200">
+              <Button variant="outline" className="bg-neutral-900 border-neutral-800 text-white hover:bg-neutral-800 hover:text-white">
                 {`${format(startDate, "yyyy-MM-dd")} - ${format(endDate, "yyyy-MM-dd")}`}
               </Button>
             </PopoverTrigger>
@@ -276,8 +276,16 @@ export default function Home() {
               <CardContent className="text-2xl font-semibold text-fuchsia-300">{currency(data?.kpis?.cac || 0)}</CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
-              <CardHeader><CardTitle className="text-white">ROAS</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-white">ROAS (Facturación)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-emerald-300">{data?.kpis?.roas ? data.kpis.roas.toFixed(2) + "x" : "—"}</CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
+              <CardHeader><CardTitle className="text-white">ROAS (Cash Collected)</CardTitle></CardHeader>
+              <CardContent className="text-2xl font-semibold text-emerald-300">{(() => {
+                const spend = data?.kpis?.total_gasto_ads ?? 0;
+                const cash = data?.kpis?.cash_collected ?? 0;
+                return spend ? (cash / spend).toFixed(2) + "x" : "—";
+              })()}</CardContent>
             </Card>
           </div>
 
