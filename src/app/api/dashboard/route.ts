@@ -195,32 +195,32 @@ export async function GET(req: NextRequest) {
           $2::date AS desde_fecha,
           $3::date AS hasta_fecha
       ),
-      -- Agendamientos por creativo (desde resumenes_diarios_creativos) - con manejo de errores
+      -- Agendamientos por creativo (desde resumenes_diarios_agendas)
       agendamientos_creativos AS (
         SELECT
-          origen AS creativo,
+          LOWER(TRIM(origen)) AS creativo,
           COUNT(*) AS agendas
-        FROM resumenes_diarios_creativos c
-        JOIN parametros p ON c.id_cuenta = p.id_cuenta
-        WHERE c.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
-          AND origen IS NOT NULL
-        GROUP BY origen
-      ),
-      -- Gastos por creativo (desde resumenes_diarios_agendas) - usando solo columnas que existen
-      gastos_creativos AS (
-        SELECT
-          origen AS creativo,
-          0 AS gasto_total  -- Por ahora 0 hasta que tengamos la columna de gasto
         FROM resumenes_diarios_agendas a
         JOIN parametros p ON a.id_cuenta = p.id_cuenta
         WHERE a.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
           AND origen IS NOT NULL
-        GROUP BY origen
+        GROUP BY LOWER(TRIM(origen))
+      ),
+      -- Gastos por creativo (desde resumenes_diarios_creativos) - gastos reales
+      gastos_creativos AS (
+        SELECT
+          LOWER(TRIM(nombre_de_creativo)) AS creativo,
+          SUM(gasto_total_creativo) AS gasto_total
+        FROM resumenes_diarios_creativos c
+        JOIN parametros p ON c.id_cuenta = p.id_cuenta
+        WHERE c.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
+          AND nombre_de_creativo IS NOT NULL
+        GROUP BY LOWER(TRIM(nombre_de_creativo))
       ),
       -- Resultados por creativo (desde eventos_llamadas_tiempo_real)
       resultados_creativos AS (
         SELECT
-          anuncio_origen AS creativo,
+          LOWER(TRIM(anuncio_origen)) AS creativo,
           COUNT(*) AS shows,
           COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada') AS cierres,
           SUM(facturacion) AS facturacion,
@@ -229,7 +229,8 @@ export async function GET(req: NextRequest) {
         JOIN parametros p ON e.id_cuenta = p.id_cuenta
         WHERE (e.fecha_hora_evento AT TIME ZONE p.zona)::date 
               BETWEEN p.desde_fecha AND p.hasta_fecha
-        GROUP BY anuncio_origen
+          AND anuncio_origen IS NOT NULL
+        GROUP BY LOWER(TRIM(anuncio_origen))
       ),
       -- Unir todos los creativos únicos (agendamientos + gastos + resultados)
       todos_los_creativos AS (
