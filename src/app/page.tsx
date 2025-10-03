@@ -31,6 +31,7 @@ type ApiResponse = {
     costo_por_agenda_calificada: number;
     costo_por_show: number;
     roas: number;
+    roas_cash_collected: number;
     no_show: number;
   };
   series: Array<{
@@ -281,11 +282,7 @@ export default function Home() {
             </Card>
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
               <CardHeader><CardTitle className="text-white">ROAS (Cash Collected)</CardTitle></CardHeader>
-              <CardContent className="text-2xl font-semibold text-emerald-300">{(() => {
-                const spend = data?.kpis?.total_gasto_ads ?? 0;
-                const cash = data?.kpis?.cash_collected ?? 0;
-                return spend ? (cash / spend).toFixed(2) + "x" : "—";
-              })()}</CardContent>
+              <CardContent className="text-2xl font-semibold text-emerald-300">{data?.kpis?.roas_cash_collected ? data.kpis.roas_cash_collected.toFixed(2) + "x" : "—"}</CardContent>
             </Card>
           </div>
 

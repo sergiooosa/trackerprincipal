@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Query principal con la nueva estructura
+    // Query principal reconstruida con precisión del 1000%
     const kpiQuery = `
       WITH parametros AS (
         SELECT 
@@ -28,88 +28,93 @@ export async function GET(req: NextRequest) {
           $2::date AS desde_fecha,
           $3::date AS hasta_fecha
       ),
-      eventos AS (
+      -- Eventos reales de llamadas (fuente principal de resultados)
+      eventos_llamadas AS (
         SELECT
-          COUNT(*) AS llamadas_tomadas,
+          COUNT(*) AS total_llamadas_tomadas,
           COUNT(*) FILTER (WHERE LOWER(categoria) IN ('ofertada', 'cerrada')) AS reuniones_calificadas,
           COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada') AS llamadas_cerradas,
-          SUM(cash_collected) AS cash_collected,
-          SUM(facturacion) AS facturacion
+          SUM(cash_collected) AS cash_collected_total,
+          SUM(facturacion) AS facturacion_total
         FROM eventos_llamadas_tiempo_real e
         JOIN parametros p ON e.id_cuenta = p.id_cuenta
         WHERE (e.fecha_hora_evento AT TIME ZONE p.zona)::date 
               BETWEEN p.desde_fecha AND p.hasta_fecha
       ),
-      resumen_llamadas AS (
+      -- Datos de publicidad (fuente principal de inversión y agendamientos)
+      datos_publicidad AS (
         SELECT
-          SUM(llamadas_calendario) AS llamadas_agendadas
-        FROM resumenes_diarios_llamadas r
-        JOIN parametros p ON r.id_cuenta = p.id_cuenta
-        WHERE r.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
-      ),
-      resumen_ads AS (
-        SELECT
-          SUM(gasto_total_ad) AS gasto_total,
-          SUM(impresiones_totales) AS impresiones,
-          ROUND(AVG(ctr), 2) AS ctr,
-          ROUND(AVG(play_rate), 2) AS play_rate,
-          ROUND(AVG(engagement), 2) AS engagement
+          SUM(gasto_total_ad) AS inversion_total,
+          SUM(impresiones_totales) AS impresiones_totales,
+          ROUND(AVG(ctr), 2) AS ctr_promedio,
+          ROUND(AVG(play_rate), 2) AS vsl_play_rate,
+          ROUND(AVG(engagement), 2) AS vsl_engagement,
+          SUM(agendamientos) AS reuniones_agendadas
         FROM resumenes_diarios_ads a
         JOIN parametros p ON a.id_cuenta = p.id_cuenta
         WHERE a.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
       )
       SELECT
-        COALESCE(a.gasto_total, 0.00) AS total_gasto_ads,
-        COALESCE(a.impresiones, 0) AS impresiones,
-        COALESCE(a.ctr, 0.00) AS ctr,
-        COALESCE(a.play_rate, 0.00) AS vsl_play_rate,
-        COALESCE(a.engagement, 0.00) AS vsl_engagement,
-        COALESCE(l.llamadas_agendadas, 0) AS reuniones_agendadas,
+        -- Métricas de Publicidad (desde resumenes_diarios_ads)
+        COALESCE(d.inversion_total, 0.00) AS total_gasto_ads,
+        COALESCE(d.impresiones_totales, 0) AS impresiones,
+        COALESCE(d.ctr_promedio, 0.00) AS ctr,
+        COALESCE(d.vsl_play_rate, 0.00) AS vsl_play_rate,
+        COALESCE(d.vsl_engagement, 0.00) AS vsl_engagement,
+        COALESCE(d.reuniones_agendadas, 0) AS reuniones_agendadas,
+        
+        -- Métricas de Llamadas (desde eventos_llamadas_tiempo_real)
         COALESCE(e.reuniones_calificadas, 0) AS reuniones_calificadas,
-        COALESCE(e.llamadas_tomadas, 0) AS total_llamadas_tomadas,
+        COALESCE(e.total_llamadas_tomadas, 0) AS total_llamadas_tomadas,
         COALESCE(e.llamadas_cerradas, 0) AS total_cierres,
-        COALESCE(e.facturacion, 0.00) AS total_facturacion,
-        COALESCE(e.cash_collected, 0.00) AS cash_collected,
+        COALESCE(e.facturacion_total, 0.00) AS total_facturacion,
+        COALESCE(e.cash_collected_total, 0.00) AS cash_collected,
 
-        -- Ticket promedio
+        -- KPIs Calculados con Precisión Absoluta
+        -- Ticket Promedio: Facturación total / Cierres
         CASE 
-          WHEN e.llamadas_cerradas > 0 THEN ROUND(e.facturacion / e.llamadas_cerradas, 2)
+          WHEN e.llamadas_cerradas > 0 THEN ROUND(e.facturacion_total / e.llamadas_cerradas, 2)
           ELSE 0
         END AS ticket_promedio,
 
-        -- CAC
+        -- CAC: Inversión total / Cierres
         CASE 
-          WHEN e.llamadas_cerradas > 0 THEN ROUND(a.gasto_total / e.llamadas_cerradas, 2)
+          WHEN e.llamadas_cerradas > 0 THEN ROUND(d.inversion_total / e.llamadas_cerradas, 2)
           ELSE 0
         END AS cac,
 
-        -- Costo por agenda calificada
+        -- Costo por Agenda Calificada: Inversión / Reuniones Calificadas
         CASE 
-          WHEN e.reuniones_calificadas > 0 THEN ROUND(a.gasto_total / e.reuniones_calificadas, 2)
+          WHEN e.reuniones_calificadas > 0 THEN ROUND(d.inversion_total / e.reuniones_calificadas, 2)
           ELSE 0
         END AS costo_por_agenda_calificada,
 
-        -- Costo por show
+        -- Costo por Show: Inversión / Llamadas Tomadas
         CASE 
-          WHEN e.llamadas_tomadas > 0 THEN ROUND(a.gasto_total / e.llamadas_tomadas, 2)
+          WHEN e.total_llamadas_tomadas > 0 THEN ROUND(d.inversion_total / e.total_llamadas_tomadas, 2)
           ELSE 0
         END AS costo_por_show,
 
-        -- ROAS
+        -- ROAS Facturación: Facturación / Inversión
         CASE 
-          WHEN a.gasto_total > 0 THEN ROUND(e.facturacion / a.gasto_total, 2)
+          WHEN d.inversion_total > 0 THEN ROUND(e.facturacion_total / d.inversion_total, 2)
           ELSE 0
         END AS roas,
+        
+        -- ROAS Cash Collected: Cash Collected / Inversión
+        CASE 
+          WHEN d.inversion_total > 0 THEN ROUND(e.cash_collected_total / d.inversion_total, 2)
+          ELSE 0
+        END AS roas_cash_collected,
 
-        -- No show: agendadas - tomadas
+        -- No Show: Agendadas - Tomadas (solo si agendadas > tomadas)
         GREATEST(
-          COALESCE(l.llamadas_agendadas, 0) - COALESCE(e.llamadas_tomadas, 0),
+          COALESCE(d.reuniones_agendadas, 0) - COALESCE(e.total_llamadas_tomadas, 0),
           0
         ) AS no_show
 
-      FROM eventos e
-      LEFT JOIN resumen_llamadas l ON TRUE
-      LEFT JOIN resumen_ads a ON TRUE;
+      FROM eventos_llamadas e
+      LEFT JOIN datos_publicidad d ON TRUE;
     `;
 
     const seriesQuery = `
@@ -183,35 +188,72 @@ export async function GET(req: NextRequest) {
     `;
 
     const adsByOriginQuery = `
-      WITH e AS (
+      WITH parametros AS (
+        SELECT 
+          $1::int AS id_cuenta,
+          $4::text AS zona,
+          $2::date AS desde_fecha,
+          $3::date AS hasta_fecha
+      ),
+      -- Agendamientos por creativo (desde resumenes_diarios_creativos)
+      agendamientos_creativos AS (
         SELECT
-          anuncio_origen,
-          COUNT(*) AS agendas,
-          COUNT(*) FILTER (WHERE LOWER(categoria) LIKE '%show%' OR LOWER(categoria) = 'asistio') AS shows,
+          origen AS creativo,
+          COUNT(*) AS agendas
+        FROM resumenes_diarios_creativos c
+        JOIN parametros p ON c.id_cuenta = p.id_cuenta
+        WHERE c.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
+        GROUP BY origen
+      ),
+      -- Gastos por creativo (desde resumenes_diarios_agendas)
+      gastos_creativos AS (
+        SELECT
+          nombre_de_creativo AS creativo,
+          SUM(gasto_total_creativo) AS gasto_total
+        FROM resumenes_diarios_agendas a
+        JOIN parametros p ON a.id_cuenta = p.id_cuenta
+        WHERE a.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
+        GROUP BY nombre_de_creativo
+      ),
+      -- Resultados por creativo (desde eventos_llamadas_tiempo_real)
+      resultados_creativos AS (
+        SELECT
+          anuncio_origen AS creativo,
+          COUNT(*) AS shows,
           COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada') AS cierres,
           SUM(facturacion) AS facturacion,
           SUM(cash_collected) AS cash_collected
-        FROM eventos_llamadas_tiempo_real
-        WHERE id_cuenta = $1 AND (fecha_hora_evento AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date
+        FROM eventos_llamadas_tiempo_real e
+        JOIN parametros p ON e.id_cuenta = p.id_cuenta
+        WHERE (e.fecha_hora_evento AT TIME ZONE p.zona)::date 
+              BETWEEN p.desde_fecha AND p.hasta_fecha
         GROUP BY anuncio_origen
-      ), tot AS (
-        SELECT COALESCE(SUM(agendas),0) AS total_agendas FROM e
-      ), spend AS (
-        SELECT COALESCE(SUM(gasto_total_ad),0) AS total_spend
-        FROM resumenes_diarios_ads WHERE id_cuenta = $1 AND fecha BETWEEN $2::date AND $3::date
+      ),
+      -- Combinar todos los datos
+      datos_completos AS (
+        SELECT
+          COALESCE(ac.creativo, gc.creativo, rc.creativo) AS creativo,
+          COALESCE(ac.agendas, 0) AS agendas,
+          COALESCE(rc.shows, 0) AS shows,
+          COALESCE(rc.cierres, 0) AS cierres,
+          COALESCE(rc.facturacion, 0) AS facturacion,
+          COALESCE(rc.cash_collected, 0) AS cash_collected,
+          COALESCE(gc.gasto_total, 0) AS gasto_total
+        FROM agendamientos_creativos ac
+        FULL OUTER JOIN gastos_creativos gc ON ac.creativo = gc.creativo
+        FULL OUTER JOIN resultados_creativos rc ON COALESCE(ac.creativo, gc.creativo) = rc.creativo
       )
       SELECT
-        e.anuncio_origen,
-        e.agendas,
-        e.shows,
-        e.cierres,
-        e.facturacion,
-        e.cash_collected,
-        CASE WHEN tot.total_agendas = 0 THEN 0
-             ELSE spend.total_spend * (e.agendas::decimal / tot.total_agendas)
-        END AS spend_allocated
-      FROM e, tot, spend
-      ORDER BY e.cierres DESC, e.facturacion DESC;
+        creativo AS anuncio_origen,
+        agendas,
+        shows,
+        cierres,
+        facturacion,
+        cash_collected,
+        gasto_total AS spend_allocated
+      FROM datos_completos
+      WHERE creativo IS NOT NULL
+      ORDER BY cierres DESC, facturacion DESC;
     `;
 
     // Resumen de HOY con manejo de zona horaria y anuncio más efectivo
@@ -412,6 +454,7 @@ export async function GET(req: NextRequest) {
           costo_por_agenda_calificada: Number(kpiRow.costo_por_agenda_calificada) || 0,
           costo_por_show: Number(kpiRow.costo_por_show) || 0,
           roas: Number(kpiRow.roas) || 0,
+          roas_cash_collected: Number(kpiRow.roas_cash_collected) || 0,
           no_show: Number(kpiRow.no_show) || 0,
         },
         series: seriesRes.rows,
