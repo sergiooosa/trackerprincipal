@@ -127,7 +127,9 @@ export default function Home() {
   const series = dataset?.series ?? [];
   const closers = useMemo(() => (dataset?.closers ?? []).map((c) => ({
     ...c,
-    tasa_cierre: c.llamadas_tomadas ? (c.cierres / c.llamadas_tomadas) * 100 : 0,
+    // Close rate debe salir de las reuniones asistidas (shows)
+    tasa_cierre: c.shows ? (c.cierres / c.shows) * 100 : 0,
+    // Show rate: shows / reuniones calificadas
     tasa_show: c.reuniones_calificadas ? (c.shows / c.reuniones_calificadas) * 100 : 0,
   })), [dataset]);
   const events = dataset?.events ?? [];
