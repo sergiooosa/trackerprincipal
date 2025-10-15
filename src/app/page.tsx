@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import * as XLSX from "xlsx";
 //
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -86,6 +87,30 @@ type ApiResponse = {
     cash_collected: number;
     spend_allocated: number;
   }>;
+  hoy?: {
+    fecha: string;
+    llamadas_tomadas: number;
+    llamadas_calificadas: number;
+    cierres: number;
+    fees_real: number;
+    facturacion_real: number;
+    anuncio_mas_efectivo: string;
+    llamadas_agendadas: number;
+    llamadas_canceladas: number;
+    no_show: number;
+    llamadas_ofertadas: number;
+    fees_resumen: number;
+    facturacion_total: number;
+    gasto_ads: number;
+    impresiones_totales: number;
+    clicks_unicos: number;
+    play_rate: number;
+    engagement: number;
+    cpm: number;
+    cpc: number;
+    ctr: number;
+    agendamientos_ads: number;
+  } | null;
 };
 
 function currency(value: number) {
@@ -127,10 +152,10 @@ export default function Home() {
   const series = dataset?.series ?? [];
   const closers = useMemo(() => (dataset?.closers ?? []).map((c) => ({
     ...c,
-    // Close rate debe salir de las reuniones asistidas (shows)
-    tasa_cierre: c.shows ? (c.cierres / c.shows) * 100 : 0,
+    // Close rate: llamadas calificadas / llamadas cerradas (corregido)
+    tasa_cierre: c.llamadas_tomadas && c.cierres ? (c.cierres / c.llamadas_tomadas) * 100 : 0,
     // Show rate: shows / reuniones calificadas
-    tasa_show: c.reuniones_calificadas ? (c.shows / c.reuniones_calificadas) * 100 : 0,
+    tasa_show: c.reuniones_calificadas && c.shows ? (c.shows / c.reuniones_calificadas) * 100 : 0,
   })), [dataset]);
   const events = dataset?.events ?? [];
 
@@ -176,6 +201,44 @@ export default function Home() {
               </div>
             </PopoverContent>
           </Popover>
+          <Button
+            onClick={() => {
+              if (!dataset) return;
+              const wb = XLSX.utils.book_new();
+
+              const safeAppend = (name: string, rows: Array<Record<string, unknown>>) => {
+                try {
+                  const ws = XLSX.utils.json_to_sheet(rows);
+                  XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+                } catch {
+                  // evitar crash si datos vacíos
+                }
+              };
+
+              const kpisEntries = Object.entries(dataset.kpis || {}).map(([metric, value]) => ({ metric, value }));
+              safeAppend("KPIs", kpisEntries);
+
+              if (dataset.adsKpis) safeAppend("Ads_KPIs", [dataset.adsKpis]);
+              if (dataset.callsKpis) safeAppend("Calls_KPIs", [dataset.callsKpis]);
+              if (dataset.hoy) safeAppend("Hoy", [dataset.hoy]);
+
+              safeAppend("Series", dataset.series || []);
+              safeAppend("Closers", (dataset.closers || []).map((c) => ({
+                ...c,
+                tasa_cierre: c.llamadas_tomadas && c.cierres ? (c.cierres / c.llamadas_tomadas) * 100 : 0,
+                tasa_show: c.reuniones_calificadas && c.shows ? (c.shows / c.reuniones_calificadas) * 100 : 0,
+              })));
+              safeAppend("Eventos", dataset.events || []);
+              safeAppend("Ads_por_Origen", dataset.adsByOrigin || []);
+
+              const fileName = `dashboard_export_${format(startDate, "yyyyMMdd")}_${format(endDate, "yyyyMMdd")}_id3.xlsx`;
+              XLSX.writeFile(wb, fileName);
+            }}
+            className="bg-neutral-900 border border-neutral-800 text-neutral-200 hover:border-cyan-400/40 hover:text-cyan-300"
+            variant="outline"
+          >
+            📊 Exportar a Excel
+          </Button>
         </div>
       </div>
 
@@ -288,6 +351,29 @@ export default function Home() {
               <CardHeader><CardTitle className="text-white">ROAS (Cash Collected)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-emerald-300">{data?.kpis?.roas_cash_collected ? data.kpis.roas_cash_collected.toFixed(2) + "x" : "—"}</CardContent>
             </Card>
+            
+            {/* Nuevos tableros */}
+            <Card className="bg-gradient-to-br from-[#1a0f2e] to-[#0f0a1a] border border-[#4a2c5a] shadow-[0_0_0_1px_rgba(147,51,234,0.15),0_10px_40px_-10px_rgba(147,51,234,0.3)]">
+              <CardHeader><CardTitle className="text-white">Revenue por Show</CardTitle></CardHeader>
+              <CardContent className="text-2xl font-semibold text-purple-300">
+                {(() => {
+                  const cashCollected = data?.kpis?.cash_collected || 0;
+                  const llamadasCalificadas = data?.kpis?.reuniones_calificadas || 0;
+                  return llamadasCalificadas > 0 ? currency(cashCollected / llamadasCalificadas) : "$0";
+                })()}
+              </CardContent>
+            </Card>
+            
+            <Card className="bg-gradient-to-br from-[#0f1a2e] to-[#0a0f1a] border border-[#2c4a5a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
+              <CardHeader><CardTitle className="text-white">% Calificación</CardTitle></CardHeader>
+              <CardContent className="text-2xl font-semibold text-blue-300">
+                {(() => {
+                  const asistieron = data?.kpis?.total_llamadas_tomadas || 0;
+                  const calificadas = data?.kpis?.reuniones_calificadas || 0;
+                  return calificadas > 0 ? ((asistieron / calificadas) * 100).toFixed(1) + "%" : "0%";
+                })()}
+              </CardContent>
+            </Card>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -344,71 +430,119 @@ export default function Home() {
             </Card>
           </div>
 
-          <Card className="w-full bg-neutral-900/60 backdrop-blur border border-neutral-800 mb-8 transition-all duration-300 hover:shadow-[0_0_0_1px_rgba(56,189,248,0.25),0_20px_60px_-15px_rgba(56,189,248,0.35)]">
-            <CardHeader>
-              <CardTitle className="text-white">Resumen por métodos de adquisición</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Fuente</TableHead>
-                      <TableHead>Spend</TableHead>
-                      <TableHead>Agendas</TableHead>
-                      <TableHead>Show rate</TableHead>
-                      <TableHead>Cierres</TableHead>
-                      <TableHead>Cash collected</TableHead>
-                      <TableHead>Ticket promedio</TableHead>
-                      <TableHead>Costo por show</TableHead>
-                      <TableHead>Costo por agenda</TableHead>
-                      <TableHead>CAC</TableHead>
-                      <TableHead>ROAS</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                      {(data?.adsByOrigin ?? []).map((row: {
-                        anuncio_origen: string;
-                        agendas: number;
-                        cierres: number;
-                        facturacion: number;
-                        cash_collected?: number;
-                        spend_allocated: number;
-                        shows?: number;
-                      }) => {
-                      const spend = row.spend_allocated || 0;
-                      const shows = row.shows ? Number(row.shows) : 0;
-                      const cierres = row.cierres || 0;
-                      const agendas = row.agendas || 0;
-                      const fact = row.facturacion || 0;
-                      const showRate = agendas ? ((shows / agendas) * 100).toFixed(1) + "%" : "—";
-                      const roas = spend ? (fact / spend).toFixed(2) + "x" : "—";
-                      const cpo = agendas ? currency(spend / agendas) : "$0";
-                      const cpshow = shows ? currency(spend / shows) : "$0";
-                      const cac = cierres ? currency(spend / cierres) : "$0";
-                      const cash = row.cash_collected ? Number(row.cash_collected) : 0;
-                      const ticket = cierres ? currency(cash / cierres) : "$0";
-                      return (
-                        <TableRow key={row.anuncio_origen} className="hover:bg-neutral-800/40">
-                          <TableCell className="text-white">{row.anuncio_origen}</TableCell>
-                          <TableCell className="text-white">{currency(spend)}</TableCell>
-                          <TableCell className="text-white">{agendas}</TableCell>
-                          <TableCell className="text-white">{showRate}</TableCell>
-                          <TableCell className="text-white">{cierres}</TableCell>
-                          <TableCell className="text-white">{currency(cash)}</TableCell>
-                          <TableCell className="text-white">{ticket}</TableCell>
-                          <TableCell className="text-white">{cpshow}</TableCell>
-                          <TableCell className="text-white">{cpo}</TableCell>
-                          <TableCell className="text-white">{cac}</TableCell>
-                          <TableCell className="text-white">{roas}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+          <div className="w-full bg-neutral-900/60 backdrop-blur rounded-xl border border-neutral-800 shadow-[0_0_30px_rgba(0,0,0,0.3)] mb-8 p-6">
+            <div className="mb-6">
+              <h3 className="text-2xl font-bold text-white font-sans tracking-wide">Resumen por Métodos de Adquisición</h3>
+              <p className="text-neutral-300/80 text-sm mt-1">Métricas de rendimiento por fuente de tráfico</p>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <div className="min-w-full">
+                {/* Header */}
+                <div className="grid grid-cols-11 gap-3 pb-4 mb-4 border-b border-neutral-600/20">
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Fuente</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Spend</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Agendas</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Show Rate</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Cierres</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Cash Collected</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Ticket Promedio</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Costo/Show</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Costo/Agenda</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">CAC</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">ROAS</div>
+                </div>
+
+                {/* Rows */}
+                {(data?.adsByOrigin ?? []).map((row: {
+                  anuncio_origen: string;
+                  agendas: number;
+                  cierres: number;
+                  facturacion: number;
+                  cash_collected?: number;
+                  spend_allocated: number;
+                  shows?: number;
+                }, index: number) => {
+                  const spend = row.spend_allocated || 0;
+                  const shows = row.shows ? Number(row.shows) : 0;
+                  const cierres = row.cierres || 0;
+                  const agendas = row.agendas || 0;
+                  const fact = row.facturacion || 0;
+                  const showRate = agendas ? ((shows / agendas) * 100).toFixed(1) + "%" : "—";
+                  const roas = spend ? (fact / spend).toFixed(2) + "x" : "—";
+                  const cpo = agendas ? currency(spend / agendas) : "$0";
+                  const cpshow = shows ? currency(spend / shows) : "$0";
+                  const cac = cierres ? currency(spend / cierres) : "$0";
+                  const cash = row.cash_collected ? Number(row.cash_collected) : 0;
+                  const ticket = cierres ? currency(cash / cierres) : "$0";
+                  
+                  return (
+                    <div 
+                      key={row.anuncio_origen} 
+                      className={`grid grid-cols-11 gap-3 py-3 transition-all duration-200 hover:bg-neutral-700/20 rounded-lg ${
+                        index % 2 === 0 ? 'bg-neutral-800/10' : 'bg-transparent'
+                      }`}
+                    >
+                      {/* Fuente */}
+                      <div className="font-bold text-white text-sm">
+                        {row.anuncio_origen}
+                      </div>
+                      
+                      {/* Spend */}
+                      <div className="text-gray-300 text-sm">
+                        {currency(spend)}
+                      </div>
+                      
+                      {/* Agendas */}
+                      <div className="text-cyan-300 font-medium text-sm">
+                        {agendas}
+                      </div>
+                      
+                      {/* Show Rate */}
+                      <div className="text-cyan-300 font-medium text-sm">
+                        {showRate}
+                      </div>
+                      
+                      {/* Cierres */}
+                      <div className="text-emerald-400 font-semibold text-sm">
+                        {cierres}
+                      </div>
+                      
+                      {/* Cash Collected */}
+                      <div className="text-emerald-400 font-semibold text-sm">
+                        {currency(cash)}
+                      </div>
+                      
+                      {/* Ticket Promedio */}
+                      <div className="text-emerald-400 font-semibold text-sm">
+                        {ticket}
+                      </div>
+                      
+                      {/* Costo por Show */}
+                      <div className="text-gray-300 text-sm">
+                        {cpshow}
+                      </div>
+                      
+                      {/* Costo por Agenda */}
+                      <div className="text-gray-300 text-sm">
+                        {cpo}
+                      </div>
+                      
+                      {/* CAC */}
+                      <div className="text-gray-300 text-sm">
+                        {cac}
+                      </div>
+                      
+                      {/* ROAS */}
+                      <div className="text-emerald-400 font-bold text-sm">
+                        {roas}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800 mb-8 transition-all duration-300 hover:shadow-[0_0_0_1px_rgba(56,189,248,0.25),0_20px_60px_-15px_rgba(56,189,248,0.35)]">
             <CardHeader>
