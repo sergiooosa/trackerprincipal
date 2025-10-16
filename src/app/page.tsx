@@ -454,7 +454,24 @@ export default function Home() {
                 </div>
 
                 {/* Rows */}
-                {(data?.adsByOrigin ?? []).map((row: {
+                {(data?.adsByOrigin ?? [])
+                  .sort((a, b) => {
+                    // Ordenar por: 1) Gasto (descendente), 2) Agendas (descendente), 3) Facturación (descendente)
+                    const gastoA = a.spend_allocated || 0;
+                    const gastoB = b.spend_allocated || 0;
+                    const agendasA = a.agendas || 0;
+                    const agendasB = b.agendas || 0;
+                    const factA = a.facturacion || 0;
+                    const factB = b.facturacion || 0;
+                    
+                    // Primero por gasto
+                    if (gastoA !== gastoB) return gastoB - gastoA;
+                    // Luego por agendas
+                    if (agendasA !== agendasB) return agendasB - agendasA;
+                    // Finalmente por facturación
+                    return factB - factA;
+                  })
+                  .map((row: {
                   anuncio_origen: string;
                   agendas: number;
                   cierres: number;
