@@ -456,20 +456,20 @@ export default function Home() {
                 {/* Rows */}
                 {(data?.adsByOrigin ?? [])
                   .sort((a, b) => {
-                    // Ordenar por: 1) Gasto (descendente), 2) Agendas (descendente), 3) Facturación (descendente)
-                    const gastoA = a.spend_allocated || 0;
-                    const gastoB = b.spend_allocated || 0;
+                    // Ordenar por: 1) Cash Collected (descendente), 2) Agendas (descendente), 3) Gasto (descendente)
+                    const cashA = a.cash_collected || 0;
+                    const cashB = b.cash_collected || 0;
                     const agendasA = a.agendas || 0;
                     const agendasB = b.agendas || 0;
-                    const factA = a.facturacion || 0;
-                    const factB = b.facturacion || 0;
+                    const gastoA = a.spend_allocated || 0;
+                    const gastoB = b.spend_allocated || 0;
                     
-                    // Primero por gasto
-                    if (gastoA !== gastoB) return gastoB - gastoA;
+                    // Primero por cash collected
+                    if (cashA !== cashB) return cashB - cashA;
                     // Luego por agendas
                     if (agendasA !== agendasB) return agendasB - agendasA;
-                    // Finalmente por facturación
-                    return factB - factA;
+                    // Finalmente por gasto
+                    return gastoB - gastoA;
                   })
                   .map((row: {
                   anuncio_origen: string;
