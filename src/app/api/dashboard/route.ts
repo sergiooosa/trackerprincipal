@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
         WHERE (e.fecha_hora_evento AT TIME ZONE p.zona)::date 
               BETWEEN p.desde_fecha AND p.hasta_fecha
       ),
-      -- Datos de publicidad (fuente principal de inversión y agendamientos)
+      -- Datos de publicidad (fuente principal de inversión)
       datos_publicidad AS (
         SELECT
           SUM(gasto_total_ad) AS inversion_total,
@@ -49,10 +49,17 @@ export async function GET(req: NextRequest) {
           ROUND(AVG(ctr), 2) AS ctr_promedio,
           ROUND(AVG(play_rate), 2) AS vsl_play_rate,
           ROUND(AVG(engagement), 2) AS vsl_engagement,
-          SUM(agendamientos) AS reuniones_agendadas
         FROM resumenes_diarios_ads a
         JOIN parametros p ON a.id_cuenta = p.id_cuenta
         WHERE a.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
+      ),
+      -- Agendas reales del periodo (conteo desde resumenes_diarios_agendas)
+      datos_agendas AS (
+        SELECT
+          COUNT(*) AS reuniones_agendadas
+        FROM resumenes_diarios_agendas ra
+        JOIN parametros p ON ra.id_cuenta = p.id_cuenta
+        WHERE ra.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
       )
       SELECT
         -- Métricas de Publicidad (desde resumenes_diarios_ads)
@@ -61,7 +68,7 @@ export async function GET(req: NextRequest) {
         COALESCE(d.ctr_promedio, 0.00) AS ctr,
         COALESCE(d.vsl_play_rate, 0.00) AS vsl_play_rate,
         COALESCE(d.vsl_engagement, 0.00) AS vsl_engagement,
-        COALESCE(d.reuniones_agendadas, 0) AS reuniones_agendadas,
+        COALESCE(a.reuniones_agendadas, 0) AS reuniones_agendadas,
         
         -- Métricas de Llamadas (desde eventos_llamadas_tiempo_real)
         COALESCE(e.reuniones_calificadas, 0) AS reuniones_calificadas,
@@ -109,12 +116,13 @@ export async function GET(req: NextRequest) {
 
         -- No Show: Agendadas - Tomadas (solo si agendadas > tomadas)
         GREATEST(
-          COALESCE(d.reuniones_agendadas, 0) - COALESCE(e.total_llamadas_tomadas, 0),
+          COALESCE(a.reuniones_agendadas, 0) - COALESCE(e.total_llamadas_tomadas, 0),
           0
         ) AS no_show
 
       FROM eventos_llamadas e
-      LEFT JOIN datos_publicidad d ON TRUE;
+      LEFT JOIN datos_publicidad d ON TRUE
+      LEFT JOIN datos_agendas a ON TRUE;
     `;
 
     const seriesQuery = `
@@ -171,7 +179,11 @@ export async function GET(req: NextRequest) {
         END AS ctr_pct,
         COALESCE(AVG(play_rate),0) AS vsl_play_rate,
         COALESCE(AVG(engagement),0) AS vsl_engagement,
-        COALESCE(SUM(agendamientos),0) AS reuniones_agendadas
+        COALESCE((
+          SELECT COUNT(*)
+          FROM resumenes_diarios_agendas ra
+          WHERE ra.id_cuenta = $1 AND ra.fecha BETWEEN $2::date AND $3::date
+        ),0) AS reuniones_agendadas
       FROM resumenes_diarios_ads
       WHERE id_cuenta = $1 AND fecha BETWEEN $2::date AND $3::date;
     `;
@@ -300,7 +312,6 @@ export async function GET(req: NextRequest) {
       ),
       resumen_llamadas AS (
         SELECT
-          llamadas_calendario,
           llamadas_canceladas,
           no_show,
           llamadas_ofertadas,
@@ -310,6 +321,12 @@ export async function GET(req: NextRequest) {
         JOIN parametros p ON r.id_cuenta = p.id_cuenta
         WHERE r.fecha = p.fecha_hoy
         LIMIT 1
+      ),
+      agendas_hoy AS (
+        SELECT COUNT(*) AS agendas_hoy
+        FROM resumenes_diarios_agendas ra
+        JOIN parametros p ON ra.id_cuenta = p.id_cuenta
+        WHERE ra.fecha = p.fecha_hoy
       ),
       resumen_ads AS (
         SELECT
@@ -321,7 +338,7 @@ export async function GET(req: NextRequest) {
           cpm,
           cpc,
           ctr,
-          agendamientos
+          NULL::int AS agendamientos
         FROM resumenes_diarios_ads a
         JOIN parametros p ON a.id_cuenta = p.id_cuenta
         WHERE a.fecha = p.fecha_hoy
@@ -335,7 +352,7 @@ export async function GET(req: NextRequest) {
         COALESCE(e.fees, 0.00) AS fees_real,
         COALESCE(e.facturacion_real, 0.00) AS facturacion_real,
         COALESCE(e.anuncio_mas_efectivo, 'sin_datos') AS anuncio_mas_efectivo,
-        COALESCE(r.llamadas_calendario, 0) AS llamadas_agendadas,
+        COALESCE(ag.agendas_hoy, 0) AS llamadas_agendadas,
         COALESCE(r.llamadas_canceladas, 0) AS llamadas_canceladas,
         COALESCE(r.no_show, 0) AS no_show,
         COALESCE(r.llamadas_ofertadas, 0) AS llamadas_ofertadas,
@@ -349,10 +366,11 @@ export async function GET(req: NextRequest) {
         COALESCE(a.cpm, 0.00) AS cpm,
         COALESCE(a.cpc, 0.00) AS cpc,
         COALESCE(a.ctr, 0.00) AS ctr,
-        COALESCE(a.agendamientos, 0) AS agendamientos_ads
+        COALESCE(ag.agendas_hoy, 0) AS agendamientos_ads
       FROM parametros p
       LEFT JOIN eventos_hoy e ON TRUE
       LEFT JOIN resumen_llamadas r ON TRUE
+      LEFT JOIN agendas_hoy ag ON TRUE
       LEFT JOIN resumen_ads a ON TRUE;
     `;
 
