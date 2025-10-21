@@ -11,10 +11,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-// Importación dinámica para evitar problemas SSR/hidratación
-let XLSX: (typeof import("xlsx")) | undefined;
-//
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+// Importación estática de XLSX para exportación a Excel
+import * as XLSX from "xlsx";
 
 type ApiResponse = {
   kpis: {
@@ -218,48 +216,34 @@ export default function Home() {
           <Button
             onClick={() => {
               if (!dataset) return;
-              const doExport = async () => {
-                if (!XLSX) {
-                  // Intentar ESM primero para navegadores modernos (usado por Vercel/Next en client)
-                  let mod: typeof import("xlsx");
-                  try {
-                    mod = (await import("xlsx/xlsx.mjs")) as unknown as typeof import("xlsx");
-                  } catch {
-                    mod = (await import("xlsx")) as typeof import("xlsx");
-                  }
-                  XLSX = mod;
-                }
-                const xlsx = XLSX as NonNullable<typeof XLSX>;
-                const wb = xlsx.utils.book_new();
+              const wb = XLSX.utils.book_new();
 
-                const safeAppend = (name: string, rows: Array<Record<string, unknown>>) => {
-                  try {
-                    const ws = xlsx.utils.json_to_sheet(rows);
-                    xlsx.utils.book_append_sheet(wb, ws, name.slice(0, 31));
-                  } catch {}
-                };
-
-                const kpisEntries = Object.entries(dataset.kpis || {}).map(([metric, value]) => ({ metric, value }));
-                safeAppend("KPIs", kpisEntries);
-
-                if (dataset.adsKpis) safeAppend("Ads_KPIs", [dataset.adsKpis]);
-                if (dataset.callsKpis) safeAppend("Calls_KPIs", [dataset.callsKpis]);
-                if (dataset.hoy) safeAppend("Hoy", [dataset.hoy]);
-
-                safeAppend("Series", dataset.series || []);
-                safeAppend("Closers", (dataset.closers || []).map((c) => ({
-                  ...c,
-                  tasa_cierre: c.llamadas_tomadas && c.cierres ? (c.cierres / c.llamadas_tomadas) * 100 : 0,
-                  tasa_show: c.reuniones_calificadas && c.shows ? (c.shows / c.reuniones_calificadas) * 100 : 0,
-                })));
-                safeAppend("Eventos", dataset.events || []);
-                safeAppend("Ads_por_Origen", dataset.adsByOrigin || []);
-                safeAppend("Pendientes_PDTE", dataset.pendientes || []);
-
-                const fileName = `dashboard_export_${format(startDate, "yyyyMMdd")}_${format(endDate, "yyyyMMdd")}_id3.xlsx`;
-                xlsx.writeFile(wb, fileName);
+              const safeAppend = (name: string, rows: Array<Record<string, unknown>>) => {
+                try {
+                  const ws = XLSX.utils.json_to_sheet(rows);
+                  XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+                } catch {}
               };
-              void doExport();
+
+              const kpisEntries = Object.entries(dataset.kpis || {}).map(([metric, value]) => ({ metric, value }));
+              safeAppend("KPIs", kpisEntries);
+
+              if (dataset.adsKpis) safeAppend("Ads_KPIs", [dataset.adsKpis]);
+              if (dataset.callsKpis) safeAppend("Calls_KPIs", [dataset.callsKpis]);
+              if (dataset.hoy) safeAppend("Hoy", [dataset.hoy]);
+
+              safeAppend("Series", dataset.series || []);
+              safeAppend("Closers", (dataset.closers || []).map((c) => ({
+                ...c,
+                tasa_cierre: c.llamadas_tomadas && c.cierres ? (c.cierres / c.llamadas_tomadas) * 100 : 0,
+                tasa_show: c.reuniones_calificadas && c.shows ? (c.shows / c.reuniones_calificadas) * 100 : 0,
+              })));
+              safeAppend("Eventos", dataset.events || []);
+              safeAppend("Ads_por_Origen", dataset.adsByOrigin || []);
+              safeAppend("Pendientes_PDTE", dataset.pendientes || []);
+
+              const fileName = `dashboard_export_${format(startDate, "yyyyMMdd")}_${format(endDate, "yyyyMMdd")}_id3.xlsx`;
+              XLSX.writeFile(wb, fileName);
             }}
             className="bg-neutral-900 border border-neutral-800 text-neutral-200 hover:border-cyan-400/40 hover:text-cyan-300"
             variant="outline"
