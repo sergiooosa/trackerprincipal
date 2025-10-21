@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
           SUM(impresiones_totales) AS impresiones_totales,
           ROUND(AVG(ctr), 2) AS ctr_promedio,
           ROUND(AVG(play_rate), 2) AS vsl_play_rate,
-          ROUND(AVG(engagement), 2) AS vsl_engagement,
+          ROUND(AVG(engagement), 2) AS vsl_engagement
         FROM resumenes_diarios_ads a
         JOIN parametros p ON a.id_cuenta = p.id_cuenta
         WHERE a.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
