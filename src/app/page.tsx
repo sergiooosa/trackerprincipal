@@ -123,6 +123,7 @@ type ApiResponse = {
     email_lead: string;
     categoria: string;
     closer: string;
+    fecha_de_la_reunion: string | null;
   }>;
 };
 
@@ -721,9 +722,9 @@ export default function Home() {
               <div className="overflow-x-auto">
                 <div className="min-w-[720px]">
                   <div className="grid grid-cols-6 gap-3 p-4 text-xs uppercase tracking-wider text-neutral-300 bg-neutral-900/60">
-                    <div>Fecha</div>
+                    <div>Fecha de agendamiento</div>
                     <div>Lead</div>
-                    <div>Origen</div>
+                    <div>Fecha de la reunión</div>
                     <div>Email</div>
                     <div>Closer</div>
                     <div className="text-right pr-2">Estado</div>
@@ -735,7 +736,9 @@ export default function Home() {
                     >
                       <div className="text-white text-sm">{new Date(p.fecha).toLocaleDateString()}</div>
                       <div className="text-white text-sm font-medium">{p.nombre_de_lead}</div>
-                      <div className="text-neutral-300 text-sm">{p.origen}</div>
+                      <div className="text-neutral-300 text-sm">
+                        {p.fecha_de_la_reunion ? new Date(p.fecha_de_la_reunion).toLocaleDateString() : "—"}
+                      </div>
                       <div className="text-neutral-300 text-sm truncate">{p.email_lead}</div>
                       <div className="text-neutral-300 text-sm">{p.closer}</div>
                       <div className="flex justify-end pr-2">

@@ -192,7 +192,8 @@ export async function GET(req: NextRequest) {
         origen,
         email_lead,
         categoria,
-        closer
+        closer,
+        "fecha de la reunion" AS fecha_de_la_reunion
       FROM resumenes_diarios_agendas
       WHERE id_cuenta = $1
         AND fecha BETWEEN $2::date AND $3::date
@@ -238,7 +239,7 @@ export async function GET(req: NextRequest) {
           $2::date AS desde_fecha,
           $3::date AS hasta_fecha
       ),
-      -- Agendamientos por creativo (desde resumenes_diarios_agendas)
+      -- Agendamientos y Shows por creativo (desde resumenes_diarios_agendas)
       agendamientos_creativos AS (
         SELECT
           LOWER(TRIM(origen)) AS creativo,
@@ -247,7 +248,10 @@ export async function GET(req: NextRequest) {
           ) AS agendas_sin_pdte,
           COUNT(*) FILTER (
             WHERE LOWER(TRIM(COALESCE(categoria, ''))) = 'cancelada'
-          ) AS canceladas
+          ) AS canceladas,
+          COUNT(*) FILTER (
+            WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('ofertada', 'cerrada', 'no_ofertada')
+          ) AS shows
         FROM resumenes_diarios_agendas a
         JOIN parametros p ON a.id_cuenta = p.id_cuenta
         WHERE a.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
@@ -294,7 +298,7 @@ export async function GET(req: NextRequest) {
         SELECT
           tc.creativo,
           GREATEST(COALESCE(ac.agendas_sin_pdte, 0) - COALESCE(ac.canceladas, 0), 0) AS agendas,
-          COALESCE(rc.shows, 0) AS shows,
+          COALESCE(ac.shows, 0) AS shows,
           COALESCE(rc.cierres, 0) AS cierres,
           COALESCE(rc.facturacion, 0) AS facturacion,
           COALESCE(rc.cash_collected, 0) AS cash_collected,
