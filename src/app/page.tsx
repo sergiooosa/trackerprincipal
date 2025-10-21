@@ -220,7 +220,13 @@ export default function Home() {
               if (!dataset) return;
               const doExport = async () => {
                 if (!XLSX) {
-                  const mod = (await import("xlsx")) as typeof import("xlsx");
+                  // Intentar ESM primero para navegadores modernos (usado por Vercel/Next en client)
+                  let mod: typeof import("xlsx");
+                  try {
+                    mod = (await import("xlsx/xlsx.mjs")) as unknown as typeof import("xlsx");
+                  } catch {
+                    mod = (await import("xlsx")) as typeof import("xlsx");
+                  }
                   XLSX = mod;
                 }
                 const xlsx = XLSX as NonNullable<typeof XLSX>;
@@ -456,38 +462,7 @@ export default function Home() {
             </Card>
           </div>
 
-          {/* Llamadas pendientes */}
-          <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800 mb-8">
-            <CardHeader>
-              <CardTitle className="text-white">Llamadas pendientes (PDTE)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Fecha</TableHead>
-                      <TableHead>Lead</TableHead>
-                      <TableHead>Origen</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Closer</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(dataset?.pendientes ?? []).map((p) => (
-                      <TableRow key={p.id_registro_agenda}>
-                        <TableCell className="text-white">{new Date(p.fecha).toLocaleDateString()}</TableCell>
-                        <TableCell className="text-white">{p.nombre_de_lead}</TableCell>
-                        <TableCell className="text-white">{p.origen}</TableCell>
-                        <TableCell className="text-white">{p.email_lead}</TableCell>
-                        <TableCell className="text-white">{p.closer}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+          {/* ... sección movida al final ... */}
 
           <div className="w-full bg-neutral-900/60 backdrop-blur rounded-xl border border-neutral-800 shadow-[0_0_30px_rgba(0,0,0,0.3)] mb-8 p-6">
             <div className="mb-6">
@@ -787,6 +762,50 @@ export default function Home() {
                   );
                 })}
               </Accordion>
+            </CardContent>
+          </Card>
+
+          {/* Llamadas pendientes (al final) */}
+          <Card className="bg-gradient-to-br from-[#0b0b12] to-[#0a0a0e] border border-[#2a2a3a] mb-8 overflow-hidden">
+            <CardHeader className="bg-[linear-gradient(90deg,#111827,transparent)] border-b border-[#2a2a3a]">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-white flex items-center gap-2">
+                  <span className="inline-block w-2 h-2 rounded-full bg-yellow-400 shadow-[0_0_12px_2px_rgba(250,204,21,0.6)]" />
+                  Llamadas pendientes
+                </CardTitle>
+                <span className="text-xs text-neutral-400">{(dataset?.pendientes?.length ?? 0).toLocaleString()} pendientes</span>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <div className="min-w-[720px]">
+                  <div className="grid grid-cols-6 gap-3 p-4 text-xs uppercase tracking-wider text-neutral-300 bg-neutral-900/60">
+                    <div>Fecha</div>
+                    <div>Lead</div>
+                    <div>Origen</div>
+                    <div>Email</div>
+                    <div>Closer</div>
+                    <div className="text-right pr-2">Estado</div>
+                  </div>
+                  {(dataset?.pendientes ?? []).map((p, idx) => (
+                    <div
+                      key={p.id_registro_agenda}
+                      className={`grid grid-cols-6 gap-3 items-center px-4 py-3 border-t border-neutral-800 ${idx % 2 === 0 ? "bg-neutral-900/30" : "bg-transparent"}`}
+                    >
+                      <div className="text-white text-sm">{new Date(p.fecha).toLocaleDateString()}</div>
+                      <div className="text-white text-sm font-medium">{p.nombre_de_lead}</div>
+                      <div className="text-neutral-300 text-sm">{p.origen}</div>
+                      <div className="text-neutral-300 text-sm truncate">{p.email_lead}</div>
+                      <div className="text-neutral-300 text-sm">{p.closer}</div>
+                      <div className="flex justify-end pr-2">
+                        <span className="px-2 py-1 rounded-full text-[10px] font-semibold border bg-yellow-500/15 text-yellow-300 border-yellow-400/40">
+                          Pendiente
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </CardContent>
           </Card>
         </>
