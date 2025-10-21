@@ -11,7 +11,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import * as XLSX from "xlsx";
+// Importación dinámica para evitar problemas SSR/hidratación
+let XLSX: any;
 //
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -83,6 +84,7 @@ type ApiResponse = {
   } | null;
   adsByOrigin?: Array<{
     anuncio_origen: string;
+    padre_campana?: string;
     agendas: number;
     cierres: number;
     facturacion: number;
@@ -215,35 +217,41 @@ export default function Home() {
           <Button
             onClick={() => {
               if (!dataset) return;
-              const wb = XLSX.utils.book_new();
-
-              const safeAppend = (name: string, rows: Array<Record<string, unknown>>) => {
-                try {
-                  const ws = XLSX.utils.json_to_sheet(rows);
-                  XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
-                } catch {
-                  // evitar crash si datos vacíos
+              const doExport = async () => {
+                if (!XLSX) {
+                  const mod = await import("xlsx");
+                  XLSX = mod.default || mod; // compat CJS/ESM
                 }
+                const wb = XLSX.utils.book_new();
+
+                const safeAppend = (name: string, rows: Array<Record<string, unknown>>) => {
+                  try {
+                    const ws = XLSX.utils.json_to_sheet(rows);
+                    XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+                  } catch {}
+                };
+
+                const kpisEntries = Object.entries(dataset.kpis || {}).map(([metric, value]) => ({ metric, value }));
+                safeAppend("KPIs", kpisEntries);
+
+                if (dataset.adsKpis) safeAppend("Ads_KPIs", [dataset.adsKpis]);
+                if (dataset.callsKpis) safeAppend("Calls_KPIs", [dataset.callsKpis]);
+                if (dataset.hoy) safeAppend("Hoy", [dataset.hoy]);
+
+                safeAppend("Series", dataset.series || []);
+                safeAppend("Closers", (dataset.closers || []).map((c) => ({
+                  ...c,
+                  tasa_cierre: c.llamadas_tomadas && c.cierres ? (c.cierres / c.llamadas_tomadas) * 100 : 0,
+                  tasa_show: c.reuniones_calificadas && c.shows ? (c.shows / c.reuniones_calificadas) * 100 : 0,
+                })));
+                safeAppend("Eventos", dataset.events || []);
+                safeAppend("Ads_por_Origen", dataset.adsByOrigin || []);
+                safeAppend("Pendientes_PDTE", dataset.pendientes || []);
+
+                const fileName = `dashboard_export_${format(startDate, "yyyyMMdd")}_${format(endDate, "yyyyMMdd")}_id3.xlsx`;
+                XLSX.writeFile(wb, fileName);
               };
-
-              const kpisEntries = Object.entries(dataset.kpis || {}).map(([metric, value]) => ({ metric, value }));
-              safeAppend("KPIs", kpisEntries);
-
-              if (dataset.adsKpis) safeAppend("Ads_KPIs", [dataset.adsKpis]);
-              if (dataset.callsKpis) safeAppend("Calls_KPIs", [dataset.callsKpis]);
-              if (dataset.hoy) safeAppend("Hoy", [dataset.hoy]);
-
-              safeAppend("Series", dataset.series || []);
-              safeAppend("Closers", (dataset.closers || []).map((c) => ({
-                ...c,
-                tasa_cierre: c.llamadas_tomadas && c.cierres ? (c.cierres / c.llamadas_tomadas) * 100 : 0,
-                tasa_show: c.reuniones_calificadas && c.shows ? (c.shows / c.reuniones_calificadas) * 100 : 0,
-              })));
-              safeAppend("Eventos", dataset.events || []);
-              safeAppend("Ads_por_Origen", dataset.adsByOrigin || []);
-
-              const fileName = `dashboard_export_${format(startDate, "yyyyMMdd")}_${format(endDate, "yyyyMMdd")}_id3.xlsx`;
-              XLSX.writeFile(wb, fileName);
+              void doExport();
             }}
             className="bg-neutral-900 border border-neutral-800 text-neutral-200 hover:border-cyan-400/40 hover:text-cyan-300"
             variant="outline"
@@ -489,7 +497,7 @@ export default function Home() {
               <div className="min-w-full">
                 {/* Header */}
                 <div className="grid grid-cols-11 gap-3 pb-4 mb-4 border-b border-neutral-600/20">
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Fuente</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Padre campaña / Creativo</div>
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Spend</div>
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Agendas</div>
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Show Rate</div>
@@ -502,107 +510,88 @@ export default function Home() {
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">ROAS</div>
                 </div>
 
-                {/* Rows */}
-                {(data?.adsByOrigin ?? [])
-                  .sort((a, b) => {
-                    // Ordenar por: 1) Cash Collected (descendente), 2) Agendas (descendente), 3) Gasto (descendente)
-                    const cashA = a.cash_collected || 0;
-                    const cashB = b.cash_collected || 0;
-                    const agendasA = a.agendas || 0;
-                    const agendasB = b.agendas || 0;
-                    const gastoA = a.spend_allocated || 0;
-                    const gastoB = b.spend_allocated || 0;
-                    
-                    // Primero por cash collected
-                    if (cashA !== cashB) return cashB - cashA;
-                    // Luego por agendas
-                    if (agendasA !== agendasB) return agendasB - agendasA;
-                    // Finalmente por gasto
-                    return gastoB - gastoA;
-                  })
-                  .map((row: {
-                  anuncio_origen: string;
-                  agendas: number;
-                  cierres: number;
-                  facturacion: number;
-                  cash_collected?: number;
-                  spend_allocated: number;
-                  shows?: number;
-                }, index: number) => {
-                  const spend = row.spend_allocated || 0;
-                  const shows = row.shows ? Number(row.shows) : 0;
-                  const cierres = row.cierres || 0;
-                  const agendas = row.agendas || 0;
-                  const fact = row.facturacion || 0;
-                  const showRate = agendas ? ((shows / agendas) * 100).toFixed(1) + "%" : "—";
-                  const roas = spend ? (fact / spend).toFixed(2) + "x" : "—";
-                  const cpo = agendas ? currency(spend / agendas) : "$0";
-                  const cpshow = shows ? currency(spend / shows) : "$0";
-                  const cac = cierres ? currency(spend / cierres) : "$0";
-                  const cash = row.cash_collected ? Number(row.cash_collected) : 0;
-                  const ticket = cierres ? currency(cash / cierres) : "$0";
-                  
+                {/* Grouped Rows by padre_campana */}
+                {Object.entries(
+                  (data?.adsByOrigin ?? []).reduce<Record<string, typeof data.adsByOrigin>>((acc, item) => {
+                    const key = (item.padre_campana || 'sin_padre') as string;
+                    (acc[key] ||= [] as any).push(item);
+                    return acc;
+                  }, {})
+                ).map(([padre, items], groupIdx) => {
+                  const totals = items.reduce(
+                    (agg, it) => ({
+                      spend: agg.spend + (it.spend_allocated || 0),
+                      agendas: agg.agendas + (it.agendas || 0),
+                      shows: agg.shows + (Number((it as any).shows || 0)),
+                      cierres: agg.cierres + (it.cierres || 0),
+                      fact: agg.fact + (it.facturacion || 0),
+                      cash: agg.cash + (it.cash_collected || 0),
+                    }),
+                    { spend: 0, agendas: 0, shows: 0, cierres: 0, fact: 0, cash: 0 }
+                  );
+                  const groupShowRate = totals.agendas ? ((totals.shows / totals.agendas) * 100).toFixed(1) + "%" : "—";
+                  const groupRoas = totals.spend ? (totals.fact / totals.spend).toFixed(2) + "x" : "—";
+                  const groupCpo = totals.agendas ? currency(totals.spend / totals.agendas) : "$0";
+                  const groupCpShow = totals.shows ? currency(totals.spend / totals.shows) : "$0";
+                  const groupCac = totals.cierres ? currency(totals.spend / totals.cierres) : "$0";
+
                   return (
-                    <div 
-                      key={row.anuncio_origen} 
-                      className={`grid grid-cols-11 gap-3 py-3 transition-all duration-200 hover:bg-neutral-700/20 rounded-lg ${
-                        index % 2 === 0 ? 'bg-neutral-800/10' : 'bg-transparent'
-                      }`}
-                    >
-                      {/* Fuente */}
-                      <div className="font-bold text-white text-sm">
-                        {row.anuncio_origen}
-                      </div>
-                      
-                      {/* Spend */}
-                      <div className="text-gray-300 text-sm">
-                        {currency(spend)}
-                      </div>
-                      
-                      {/* Agendas */}
-                      <div className="text-cyan-300 font-medium text-sm">
-                        {agendas}
-                      </div>
-                      
-                      {/* Show Rate */}
-                      <div className="text-cyan-300 font-medium text-sm">
-                        {showRate}
-                      </div>
-                      
-                      {/* Cierres */}
-                      <div className="text-emerald-400 font-semibold text-sm">
-                        {cierres}
-                      </div>
-                      
-                      {/* Cash Collected */}
-                      <div className="text-emerald-400 font-semibold text-sm">
-                        {currency(cash)}
-                      </div>
-                      
-                      {/* Ticket Promedio */}
-                      <div className="text-emerald-400 font-semibold text-sm">
-                        {ticket}
-                      </div>
-                      
-                      {/* Costo por Show */}
-                      <div className="text-gray-300 text-sm">
-                        {cpshow}
-                      </div>
-                      
-                      {/* Costo por Agenda */}
-                      <div className="text-gray-300 text-sm">
-                        {cpo}
-                      </div>
-                      
-                      {/* CAC */}
-                      <div className="text-gray-300 text-sm">
-                        {cac}
-                      </div>
-                      
-                      {/* ROAS */}
-                      <div className="text-emerald-400 font-bold text-sm">
-                        {roas}
-                      </div>
+                    <div key={padre} className="mb-2">
+                      {/* Parent Row */}
+                      <details className="group bg-neutral-800/20 rounded-lg">
+                        <summary className="cursor-pointer grid grid-cols-11 gap-3 py-3 px-2 items-center rounded-lg hover:bg-neutral-700/20">
+                          <div className="font-bold text-white text-sm flex items-center gap-2">
+                            <span className="inline-block w-2 h-2 rounded-full bg-cyan-400" />
+                            {padre}
+                          </div>
+                          <div className="text-gray-300 text-sm">{currency(totals.spend)}</div>
+                          <div className="text-cyan-300 font-medium text-sm">{totals.agendas}</div>
+                          <div className="text-cyan-300 font-medium text-sm">{groupShowRate}</div>
+                          <div className="text-emerald-400 font-semibold text-sm">{totals.cierres}</div>
+                          <div className="text-emerald-400 font-semibold text-sm">{currency(totals.cash)}</div>
+                          <div className="text-emerald-400 font-semibold text-sm">{totals.cierres ? currency(totals.cash / totals.cierres) : "$0"}</div>
+                          <div className="text-gray-300 text-sm">{groupCpShow}</div>
+                          <div className="text-gray-300 text-sm">{groupCpo}</div>
+                          <div className="text-gray-300 text-sm">{groupCac}</div>
+                          <div className="text-emerald-400 font-bold text-sm">{groupRoas}</div>
+                        </summary>
+
+                        {/* Child Rows: creatives */}
+                        <div className="px-2 pb-2">
+                          {items
+                            .sort((a, b) => (b.cash_collected || 0) - (a.cash_collected || 0))
+                            .map((row, index) => {
+                              const spend = row.spend_allocated || 0;
+                              const shows = (row as any).shows ? Number((row as any).shows) : 0;
+                              const cierres = row.cierres || 0;
+                              const agendas = row.agendas || 0;
+                              const fact = row.facturacion || 0;
+                              const showRate = agendas ? ((shows / agendas) * 100).toFixed(1) + "%" : "—";
+                              const roas = spend ? (fact / spend).toFixed(2) + "x" : "—";
+                              const cpo = agendas ? currency(spend / agendas) : "$0";
+                              const cpshow = shows ? currency(spend / shows) : "$0";
+                              const cac = cierres ? currency(spend / cierres) : "$0";
+                              const cash = row.cash_collected ? Number(row.cash_collected) : 0;
+                              const ticket = cierres ? currency(cash / cierres) : "$0";
+
+                              return (
+                                <div key={row.anuncio_origen} className={`ml-4 grid grid-cols-11 gap-3 py-2 px-2 rounded-lg ${index % 2 === 0 ? 'bg-neutral-800/10' : 'bg-transparent'}`}>
+                                  <div className="text-white text-sm">{row.anuncio_origen}</div>
+                                  <div className="text-gray-300 text-sm">{currency(spend)}</div>
+                                  <div className="text-cyan-300 text-sm">{agendas}</div>
+                                  <div className="text-cyan-300 text-sm">{showRate}</div>
+                                  <div className="text-emerald-400 text-sm">{cierres}</div>
+                                  <div className="text-emerald-400 text-sm">{currency(cash)}</div>
+                                  <div className="text-emerald-400 text-sm">{ticket}</div>
+                                  <div className="text-gray-300 text-sm">{cpshow}</div>
+                                  <div className="text-gray-300 text-sm">{cpo}</div>
+                                  <div className="text-gray-300 text-sm">{cac}</div>
+                                  <div className="text-emerald-400 text-sm">{roas}</div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </details>
                     </div>
                   );
                 })}

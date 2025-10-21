@@ -254,12 +254,23 @@ export async function GET(req: NextRequest) {
       gastos_creativos AS (
         SELECT
           LOWER(TRIM(nombre_de_creativo)) AS creativo,
+          LOWER(TRIM(padre_campana)) AS padre_campana,
           SUM(gasto_total_creativo) AS gasto_total
         FROM resumenes_diarios_creativos c
         JOIN parametros p ON c.id_cuenta = p.id_cuenta
         WHERE c.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
           AND nombre_de_creativo IS NOT NULL
-        GROUP BY LOWER(TRIM(nombre_de_creativo))
+        GROUP BY LOWER(TRIM(nombre_de_creativo)), LOWER(TRIM(padre_campana))
+      ),
+      -- Mapeo creativo -> padre campaña para creativos sin gasto
+      map_creativos AS (
+        SELECT DISTINCT
+          LOWER(TRIM(nombre_de_creativo)) AS creativo,
+          LOWER(TRIM(padre_campana)) AS padre_campana
+        FROM resumenes_diarios_creativos c
+        JOIN parametros p ON c.id_cuenta = p.id_cuenta
+        WHERE c.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
+          AND nombre_de_creativo IS NOT NULL
       ),
       -- Resultados por creativo (desde eventos_llamadas_tiempo_real) - simplificado
       resultados_creativos AS (
@@ -294,14 +305,17 @@ export async function GET(req: NextRequest) {
           COALESCE(rc.cierres, 0) AS cierres,
           COALESCE(rc.facturacion, 0) AS facturacion,
           COALESCE(rc.cash_collected, 0) AS cash_collected,
-          COALESCE(gc.gasto_total, 0) AS gasto_total
+          COALESCE(gc.gasto_total, 0) AS gasto_total,
+          COALESCE(gc.padre_campana, mc.padre_campana, 'sin_padre') AS padre_campana
         FROM todos_los_creativos tc
         LEFT JOIN agendamientos_creativos ac ON tc.creativo = ac.creativo
         LEFT JOIN gastos_creativos gc ON tc.creativo = gc.creativo
         LEFT JOIN resultados_creativos rc ON tc.creativo = rc.creativo
+        LEFT JOIN map_creativos mc ON tc.creativo = mc.creativo
       )
       SELECT
         creativo AS anuncio_origen,
+        padre_campana,
         agendas,
         shows,
         cierres,
