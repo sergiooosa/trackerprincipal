@@ -62,7 +62,10 @@ export async function GET(req: NextRequest) {
           ) AS agendas_canceladas,
           COUNT(*) FILTER (
             WHERE LOWER(TRIM(COALESCE(categoria, ''))) <> 'pdte'
-          ) AS agendas_sin_pdte
+          ) AS agendas_sin_pdte,
+          COUNT(*) FILTER (
+            WHERE LOWER(TRIM(COALESCE(categoria, ''))) = 'no_show'
+          ) AS no_show_count
         FROM resumenes_diarios_agendas ra
         JOIN parametros p ON ra.id_cuenta = p.id_cuenta
         WHERE ra.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
@@ -76,6 +79,7 @@ export async function GET(req: NextRequest) {
         COALESCE(d.vsl_engagement, 0.00) AS vsl_engagement,
         COALESCE(a.reuniones_agendadas, 0) AS reuniones_agendadas,
         COALESCE(a.agendas_canceladas, 0) AS llamadas_canceladas,
+        COALESCE(a.no_show_count, 0) AS no_show_agendas,
         GREATEST(
           COALESCE(a.agendas_sin_pdte, 0) - COALESCE(a.agendas_canceladas, 0),
           0
@@ -250,17 +254,6 @@ export async function GET(req: NextRequest) {
           AND origen IS NOT NULL
         GROUP BY LOWER(TRIM(origen))
       ),
-      -- Mapeo creativo -> padre campaña: tomar el registro más reciente por creativo (sin filtro de fecha)
-      map_creativos AS (
-        SELECT DISTINCT ON (LOWER(TRIM(nombre_de_creativo)))
-          LOWER(TRIM(nombre_de_creativo)) AS creativo,
-          padre_campana AS padre_campana_display
-        FROM resumenes_diarios_creativos c
-        JOIN parametros p ON c.id_cuenta = p.id_cuenta
-        WHERE nombre_de_creativo IS NOT NULL
-          AND padre_campana IS NOT NULL
-        ORDER BY LOWER(TRIM(nombre_de_creativo)), c.fecha DESC
-      ),
       -- Gastos por creativo (desde resumenes_diarios_creativos) - gastos reales
       gastos_creativos AS (
         SELECT
@@ -305,17 +298,14 @@ export async function GET(req: NextRequest) {
           COALESCE(rc.cierres, 0) AS cierres,
           COALESCE(rc.facturacion, 0) AS facturacion,
           COALESCE(rc.cash_collected, 0) AS cash_collected,
-          COALESCE(gc.gasto_total, 0) AS gasto_total,
-          COALESCE(mc.padre_campana_display, 'sin_padre') AS padre_campana
+          COALESCE(gc.gasto_total, 0) AS gasto_total
         FROM todos_los_creativos tc
         LEFT JOIN agendamientos_creativos ac ON tc.creativo = ac.creativo
         LEFT JOIN gastos_creativos gc ON tc.creativo = gc.creativo
         LEFT JOIN resultados_creativos rc ON tc.creativo = rc.creativo
-        LEFT JOIN map_creativos mc ON tc.creativo = mc.creativo
       )
       SELECT
         creativo AS anuncio_origen,
-        padre_campana,
         agendas,
         shows,
         cierres,
@@ -544,6 +534,7 @@ export async function GET(req: NextRequest) {
           roas: Number(kpiRow.roas) || 0,
           roas_cash_collected: Number(kpiRow.roas_cash_collected) || 0,
           no_show: Number(kpiRow.no_show) || 0,
+          no_show_agendas: Number(kpiRow.no_show_agendas) || 0,
           llamadas_canceladas: Number(kpiRow.llamadas_canceladas) || 0,
         },
         series: seriesRes.rows,
