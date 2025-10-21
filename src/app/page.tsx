@@ -26,6 +26,7 @@ type ApiResponse = {
     vsl_play_rate: number;
     vsl_engagement: number;
     reuniones_agendadas: number;
+    agendas_efectivas: number;
     reuniones_calificadas: number;
     cash_collected: number;
     ticket_promedio: number;
@@ -35,6 +36,7 @@ type ApiResponse = {
     roas: number;
     roas_cash_collected: number;
     no_show: number;
+    llamadas_canceladas: number;
   };
   series: Array<{
     fecha: string;
@@ -111,6 +113,15 @@ type ApiResponse = {
     ctr: number;
     agendamientos_ads: number;
   } | null;
+  pendientes?: Array<{
+    id_registro_agenda: number;
+    fecha: string;
+    nombre_de_lead: string;
+    origen: string;
+    email_lead: string;
+    categoria: string;
+    closer: string;
+  }>;
 };
 
 function currency(value: number) {
@@ -302,8 +313,8 @@ export default function Home() {
               <CardHeader><CardTitle className="text-white">Reuniones asistidas (show rate)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-cyan-300">{(() => {
                 const shows = data?.kpis?.total_llamadas_tomadas ?? 0;
-                const agendas = data?.kpis?.reuniones_agendadas ?? 0;
-                const pct = agendas ? (shows / agendas) * 100 : 0;
+                const agendasEfectivas = data?.kpis?.agendas_efectivas ?? 0; // agendas sin PDTE menos canceladas
+                const pct = agendasEfectivas ? (shows / agendasEfectivas) * 100 : 0;
                 return `${shows.toLocaleString()} (${pct.toFixed(1)}%)`;
               })()}</CardContent>
             </Card>
@@ -315,6 +326,11 @@ export default function Home() {
                 const pct = shows ? (sales / shows) * 100 : 0;
                 return `${sales.toLocaleString()} (${pct.toFixed(1)}%)`;
               })()}</CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-[#220b0b] to-[#150a0a] border border-[#4a1b1b] shadow-[0_0_0_1px_rgba(248,113,113,0.15),0_10px_40px_-10px_rgba(248,113,113,0.3)]">
+              <CardHeader><CardTitle className="text-white">Llamadas canceladas</CardTitle></CardHeader>
+              <CardContent className="text-2xl font-semibold text-red-300">{(data?.kpis?.llamadas_canceladas ?? 0).toLocaleString()}</CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader>
@@ -429,6 +445,39 @@ export default function Home() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Llamadas pendientes */}
+          <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800 mb-8">
+            <CardHeader>
+              <CardTitle className="text-white">Llamadas pendientes (PDTE)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead>Lead</TableHead>
+                      <TableHead>Origen</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Closer</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(dataset?.pendientes ?? []).map((p) => (
+                      <TableRow key={p.id_registro_agenda}>
+                        <TableCell className="text-white">{new Date(p.fecha).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-white">{p.nombre_de_lead}</TableCell>
+                        <TableCell className="text-white">{p.origen}</TableCell>
+                        <TableCell className="text-white">{p.email_lead}</TableCell>
+                        <TableCell className="text-white">{p.closer}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
 
           <div className="w-full bg-neutral-900/60 backdrop-blur rounded-xl border border-neutral-800 shadow-[0_0_30px_rgba(0,0,0,0.3)] mb-8 p-6">
             <div className="mb-6">

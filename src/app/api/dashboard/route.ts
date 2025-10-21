@@ -56,7 +56,13 @@ export async function GET(req: NextRequest) {
       -- Agendas reales del periodo (conteo desde resumenes_diarios_agendas)
       datos_agendas AS (
         SELECT
-          COUNT(*) AS reuniones_agendadas
+          COUNT(*) AS reuniones_agendadas,
+          COUNT(*) FILTER (
+            WHERE LOWER(TRIM(COALESCE(categoria, ''))) = 'cancelada'
+          ) AS agendas_canceladas,
+          COUNT(*) FILTER (
+            WHERE LOWER(TRIM(COALESCE(categoria, ''))) <> 'pdte'
+          ) AS agendas_sin_pdte
         FROM resumenes_diarios_agendas ra
         JOIN parametros p ON ra.id_cuenta = p.id_cuenta
         WHERE ra.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
@@ -69,6 +75,11 @@ export async function GET(req: NextRequest) {
         COALESCE(d.vsl_play_rate, 0.00) AS vsl_play_rate,
         COALESCE(d.vsl_engagement, 0.00) AS vsl_engagement,
         COALESCE(a.reuniones_agendadas, 0) AS reuniones_agendadas,
+        COALESCE(a.agendas_canceladas, 0) AS llamadas_canceladas,
+        GREATEST(
+          COALESCE(a.agendas_sin_pdte, 0) - COALESCE(a.agendas_canceladas, 0),
+          0
+        ) AS agendas_efectivas,
         
         -- Métricas de Llamadas (desde eventos_llamadas_tiempo_real)
         COALESCE(e.reuniones_calificadas, 0) AS reuniones_calificadas,
@@ -169,6 +180,22 @@ export async function GET(req: NextRequest) {
       ORDER BY fecha_hora_evento DESC;
     `;
 
+    const pendientesQuery = `
+      SELECT
+        id_registro_agenda,
+        fecha,
+        nombre_de_lead,
+        origen,
+        email_lead,
+        categoria,
+        closer
+      FROM resumenes_diarios_agendas
+      WHERE id_cuenta = $1
+        AND fecha BETWEEN $2::date AND $3::date
+        AND LOWER(TRIM(COALESCE(categoria, ''))) = 'pdte'
+      ORDER BY fecha DESC;
+    `;
+
     const adsKpisQuery = `
       SELECT
         COALESCE(SUM(gasto_total_ad),0) AS spend,
@@ -211,7 +238,12 @@ export async function GET(req: NextRequest) {
       agendamientos_creativos AS (
         SELECT
           LOWER(TRIM(origen)) AS creativo,
-          COUNT(*) AS agendas
+          COUNT(*) FILTER (
+            WHERE LOWER(TRIM(COALESCE(categoria, ''))) <> 'pdte'
+          ) AS agendas_sin_pdte,
+          COUNT(*) FILTER (
+            WHERE LOWER(TRIM(COALESCE(categoria, ''))) = 'cancelada'
+          ) AS canceladas
         FROM resumenes_diarios_agendas a
         JOIN parametros p ON a.id_cuenta = p.id_cuenta
         WHERE a.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
@@ -257,7 +289,7 @@ export async function GET(req: NextRequest) {
       datos_completos AS (
         SELECT
           tc.creativo,
-          COALESCE(ac.agendas, 0) AS agendas,
+          GREATEST(COALESCE(ac.agendas_sin_pdte, 0) - COALESCE(ac.canceladas, 0), 0) AS agendas,
           COALESCE(rc.shows, 0) AS shows,
           COALESCE(rc.cierres, 0) AS cierres,
           COALESCE(rc.facturacion, 0) AS facturacion,
@@ -380,10 +412,10 @@ export async function GET(req: NextRequest) {
 
     const client = await pool.connect();
     try {
-      let kpiRes, seriesRes, closersRes, eventsRes, adsKpisRes, callsKpisRes, adsByOriginRes, hoyRes;
+      let kpiRes, seriesRes, closersRes, eventsRes, adsKpisRes, callsKpisRes, adsByOriginRes, hoyRes, pendientesRes;
       
       try {
-        [kpiRes, seriesRes, closersRes, eventsRes, adsKpisRes, callsKpisRes, adsByOriginRes, hoyRes] = await Promise.all([
+        [kpiRes, seriesRes, closersRes, eventsRes, adsKpisRes, callsKpisRes, adsByOriginRes, hoyRes, pendientesRes] = await Promise.all([
           client.query(kpiQuery, params4),
           client.query(seriesQuery, params3),
           client.query(closerQuery, params4),
@@ -392,6 +424,7 @@ export async function GET(req: NextRequest) {
           client.query(callsKpisQuery, params3),
           client.query(adsByOriginQuery, params4),
           client.query(hoyQuery, hoyParams),
+          client.query(pendientesQuery, params3),
         ]);
       } catch (queryError) {
         console.error('Error en consultas:', queryError);
@@ -403,6 +436,7 @@ export async function GET(req: NextRequest) {
       const callsKpisRow = callsKpisRes.rows[0] ?? null;
       const adsByOriginRows = adsByOriginRes.rows ?? [];
       const hoyRow = hoyRes.rows?.[0] ?? null;
+      const pendientesRows = pendientesRes.rows ?? [];
 
       const adsKpis = adsKpisRow
         ? {
@@ -486,6 +520,7 @@ export async function GET(req: NextRequest) {
           vsl_play_rate: Number(kpiRow.vsl_play_rate) || 0,
           vsl_engagement: Number(kpiRow.vsl_engagement) || 0,
           reuniones_agendadas: Number(kpiRow.reuniones_agendadas) || 0,
+          agendas_efectivas: Number(kpiRow.agendas_efectivas) || 0,
           reuniones_calificadas: Number(kpiRow.reuniones_calificadas) || 0,
           cash_collected: Number(kpiRow.cash_collected) || 0,
           ticket_promedio: Number(kpiRow.ticket_promedio) || 0,
@@ -495,6 +530,7 @@ export async function GET(req: NextRequest) {
           roas: Number(kpiRow.roas) || 0,
           roas_cash_collected: Number(kpiRow.roas_cash_collected) || 0,
           no_show: Number(kpiRow.no_show) || 0,
+          llamadas_canceladas: Number(kpiRow.llamadas_canceladas) || 0,
         },
         series: seriesRes.rows,
         closers: closersRes.rows,
@@ -503,6 +539,7 @@ export async function GET(req: NextRequest) {
         callsKpis,
         adsByOrigin,
         hoy,
+        pendientes: pendientesRows,
       });
     } finally {
       client.release();
