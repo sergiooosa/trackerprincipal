@@ -239,38 +239,19 @@ export async function GET(req: NextRequest) {
           $2::date AS desde_fecha,
           $3::date AS hasta_fecha
       ),
-      -- Agendamientos y Shows por creativo (desde resumenes_diarios_agendas)
-      agendamientos_creativos AS (
+      -- Lista de creativos y Agendas desde resumenes_diarios_agendas
+      creativos_agendas AS (
         SELECT
           LOWER(TRIM(origen)) AS creativo,
-          COUNT(*) FILTER (
-            WHERE LOWER(TRIM(COALESCE(categoria, ''))) <> 'pdte'
-          ) AS agendas_sin_pdte,
-          COUNT(*) FILTER (
-            WHERE LOWER(TRIM(COALESCE(categoria, ''))) = 'cancelada'
-          ) AS canceladas,
-          COUNT(*) FILTER (
-            WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('ofertada', 'cerrada', 'no_ofertada')
-          ) AS shows
+          COUNT(*) AS agendas
         FROM resumenes_diarios_agendas a
         JOIN parametros p ON a.id_cuenta = p.id_cuenta
         WHERE a.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
           AND origen IS NOT NULL
         GROUP BY LOWER(TRIM(origen))
       ),
-      -- Gastos por creativo (desde resumenes_diarios_creativos) - gastos reales
-      gastos_creativos AS (
-        SELECT
-          LOWER(TRIM(nombre_de_creativo)) AS creativo,
-          SUM(gasto_total_creativo) AS gasto_total
-        FROM resumenes_diarios_creativos c
-        JOIN parametros p ON c.id_cuenta = p.id_cuenta
-        WHERE c.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
-          AND nombre_de_creativo IS NOT NULL
-        GROUP BY LOWER(TRIM(nombre_de_creativo))
-      ),
-      -- Resultados por creativo (desde eventos_llamadas_tiempo_real) - simplificado
-      resultados_creativos AS (
+      -- Shows (llamadas tomadas) desde eventos_llamadas_tiempo_real
+      shows_creativos AS (
         SELECT
           LOWER(TRIM(anuncio_origen)) AS creativo,
           COUNT(*) AS shows,
@@ -284,40 +265,29 @@ export async function GET(req: NextRequest) {
           AND anuncio_origen IS NOT NULL
         GROUP BY LOWER(TRIM(anuncio_origen))
       ),
-      -- Unir todos los creativos únicos (agendamientos + gastos + resultados)
-      todos_los_creativos AS (
-        SELECT DISTINCT creativo FROM agendamientos_creativos
-        UNION
-        SELECT DISTINCT creativo FROM gastos_creativos
-        UNION
-        SELECT DISTINCT creativo FROM resultados_creativos
-        WHERE creativo IS NOT NULL
-      ),
-      -- Combinar todos los datos por creativo
-      datos_completos AS (
+      -- Gastos por creativo desde resumenes_diarios_creativos
+      gastos_creativos AS (
         SELECT
-          tc.creativo,
-          GREATEST(COALESCE(ac.agendas_sin_pdte, 0) - COALESCE(ac.canceladas, 0), 0) AS agendas,
-          COALESCE(ac.shows, 0) AS shows,
-          COALESCE(rc.cierres, 0) AS cierres,
-          COALESCE(rc.facturacion, 0) AS facturacion,
-          COALESCE(rc.cash_collected, 0) AS cash_collected,
-          COALESCE(gc.gasto_total, 0) AS gasto_total
-        FROM todos_los_creativos tc
-        LEFT JOIN agendamientos_creativos ac ON tc.creativo = ac.creativo
-        LEFT JOIN gastos_creativos gc ON tc.creativo = gc.creativo
-        LEFT JOIN resultados_creativos rc ON tc.creativo = rc.creativo
+          LOWER(TRIM(nombre_de_creativo)) AS creativo,
+          SUM(gasto_total_creativo) AS gasto_total
+        FROM resumenes_diarios_creativos c
+        JOIN parametros p ON c.id_cuenta = p.id_cuenta
+        WHERE c.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
+          AND nombre_de_creativo IS NOT NULL
+        GROUP BY LOWER(TRIM(nombre_de_creativo))
       )
       SELECT
-        creativo AS anuncio_origen,
-        agendas,
-        shows,
-        cierres,
-        facturacion,
-        cash_collected,
-        gasto_total AS spend_allocated
-      FROM datos_completos
-      WHERE creativo IS NOT NULL
+        ca.creativo AS anuncio_origen,
+        COALESCE(ca.agendas, 0) AS agendas,
+        COALESCE(sc.shows, 0) AS shows,
+        COALESCE(sc.cierres, 0) AS cierres,
+        COALESCE(sc.facturacion, 0) AS facturacion,
+        COALESCE(sc.cash_collected, 0) AS cash_collected,
+        COALESCE(gc.gasto_total, 0) AS spend_allocated
+      FROM creativos_agendas ca
+      LEFT JOIN shows_creativos sc ON ca.creativo = sc.creativo
+      LEFT JOIN gastos_creativos gc ON ca.creativo = gc.creativo
+      WHERE ca.creativo IS NOT NULL
       ORDER BY cierres DESC, facturacion DESC;
     `;
 
