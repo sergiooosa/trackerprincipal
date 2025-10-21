@@ -239,7 +239,11 @@ export default function Home() {
                 tasa_cierre: c.llamadas_tomadas && c.cierres ? (c.cierres / c.llamadas_tomadas) * 100 : 0,
                 tasa_show: c.reuniones_calificadas && c.shows ? (c.shows / c.reuniones_calificadas) * 100 : 0,
               })));
-              safeAppend("Eventos", dataset.events || []);
+              // Truncar resumen_ia para evitar error de 32767 caracteres en Excel
+              safeAppend("Eventos", (dataset.events || []).map((e) => ({
+                ...e,
+                resumen_ia: (e.resumen_ia || '').length > 32000 ? (e.resumen_ia || '').slice(0, 32000) + '...' : e.resumen_ia,
+              })));
               safeAppend("Ads_por_Origen", dataset.adsByOrigin || []);
               safeAppend("Pendientes_PDTE", dataset.pendientes || []);
 
