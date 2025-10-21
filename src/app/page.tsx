@@ -220,8 +220,8 @@ export default function Home() {
               if (!dataset) return;
               const doExport = async () => {
                 if (!XLSX) {
-                  const mod = await import("xlsx");
-                  XLSX = (mod as unknown as typeof import("xlsx")).default || (mod as unknown as typeof import("xlsx")); // compat CJS/ESM
+                  const mod = (await import("xlsx")) as typeof import("xlsx");
+                  XLSX = mod;
                 }
                 const xlsx = XLSX as NonNullable<typeof XLSX>;
                 const wb = xlsx.utils.book_new();
