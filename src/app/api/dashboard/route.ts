@@ -250,19 +250,7 @@ export async function GET(req: NextRequest) {
           AND origen IS NOT NULL
         GROUP BY LOWER(TRIM(origen))
       ),
-      -- Gastos por creativo (desde resumenes_diarios_creativos) - gastos reales
-      gastos_creativos AS (
-        SELECT
-          LOWER(TRIM(nombre_de_creativo)) AS creativo,
-          padre_campana AS padre_campana_display,
-          SUM(gasto_total_creativo) AS gasto_total
-        FROM resumenes_diarios_creativos c
-        JOIN parametros p ON c.id_cuenta = p.id_cuenta
-        WHERE c.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
-          AND nombre_de_creativo IS NOT NULL
-        GROUP BY LOWER(TRIM(nombre_de_creativo)), padre_campana
-      ),
-      -- Mapeo creativo -> padre campaña tomando el último registro por creativo (hasta la fecha fin)
+      -- Mapeo creativo -> padre campaña: tomar el registro más reciente por creativo (sin filtro de fecha)
       map_creativos AS (
         SELECT DISTINCT ON (LOWER(TRIM(nombre_de_creativo)))
           LOWER(TRIM(nombre_de_creativo)) AS creativo,
@@ -270,8 +258,19 @@ export async function GET(req: NextRequest) {
         FROM resumenes_diarios_creativos c
         JOIN parametros p ON c.id_cuenta = p.id_cuenta
         WHERE nombre_de_creativo IS NOT NULL
-          AND c.fecha <= p.hasta_fecha
+          AND padre_campana IS NOT NULL
         ORDER BY LOWER(TRIM(nombre_de_creativo)), c.fecha DESC
+      ),
+      -- Gastos por creativo (desde resumenes_diarios_creativos) - gastos reales
+      gastos_creativos AS (
+        SELECT
+          LOWER(TRIM(nombre_de_creativo)) AS creativo,
+          SUM(gasto_total_creativo) AS gasto_total
+        FROM resumenes_diarios_creativos c
+        JOIN parametros p ON c.id_cuenta = p.id_cuenta
+        WHERE c.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
+          AND nombre_de_creativo IS NOT NULL
+        GROUP BY LOWER(TRIM(nombre_de_creativo))
       ),
       -- Resultados por creativo (desde eventos_llamadas_tiempo_real) - simplificado
       resultados_creativos AS (
@@ -307,7 +306,7 @@ export async function GET(req: NextRequest) {
           COALESCE(rc.facturacion, 0) AS facturacion,
           COALESCE(rc.cash_collected, 0) AS cash_collected,
           COALESCE(gc.gasto_total, 0) AS gasto_total,
-          COALESCE(gc.padre_campana_display, mc.padre_campana_display, 'sin_padre') AS padre_campana
+          COALESCE(mc.padre_campana_display, 'sin_padre') AS padre_campana
         FROM todos_los_creativos tc
         LEFT JOIN agendamientos_creativos ac ON tc.creativo = ac.creativo
         LEFT JOIN gastos_creativos gc ON tc.creativo = gc.creativo
