@@ -221,14 +221,15 @@ export default function Home() {
               const doExport = async () => {
                 if (!XLSX) {
                   const mod = await import("xlsx");
-                  XLSX = mod.default || mod; // compat CJS/ESM
+                  XLSX = (mod as unknown as typeof import("xlsx")).default || (mod as unknown as typeof import("xlsx")); // compat CJS/ESM
                 }
-                const wb = XLSX.utils.book_new();
+                const xlsx = XLSX as NonNullable<typeof XLSX>;
+                const wb = xlsx.utils.book_new();
 
                 const safeAppend = (name: string, rows: Array<Record<string, unknown>>) => {
                   try {
-                    const ws = XLSX.utils.json_to_sheet(rows);
-                    XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+                    const ws = xlsx.utils.json_to_sheet(rows);
+                    xlsx.utils.book_append_sheet(wb, ws, name.slice(0, 31));
                   } catch {}
                 };
 
@@ -250,7 +251,7 @@ export default function Home() {
                 safeAppend("Pendientes_PDTE", dataset.pendientes || []);
 
                 const fileName = `dashboard_export_${format(startDate, "yyyyMMdd")}_${format(endDate, "yyyyMMdd")}_id3.xlsx`;
-                XLSX.writeFile(wb, fileName);
+                xlsx.writeFile(wb, fileName);
               };
               void doExport();
             }}
