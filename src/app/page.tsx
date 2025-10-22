@@ -142,14 +142,18 @@ export default function Home() {
   const [endDate, setEndDate] = useState<Date>(defaultEnd);
   const [closerFilter, setCloserFilter] = useState<Record<string, string>>({});
 
+  // Configuración del cliente desde variables de entorno
+  const clientId = process.env.NEXT_PUBLIC_CLIENT_ID || "2";
+  const timezone = process.env.NEXT_PUBLIC_CLIENT_TIMEZONE || "America/Bogota";
+
   const { data, isLoading, isError, isFetching, error } = useQuery<ApiResponse>({
-    queryKey: ["dashboard", "id:2", "tz:America/Bogota", startDate?.toISOString(), endDate?.toISOString()],
+    queryKey: ["dashboard", `id:${clientId}`, `tz:${timezone}`, startDate?.toISOString(), endDate?.toISOString()],
     queryFn: async () => {
       const params = new URLSearchParams({
         fecha_inicio: formatISO(startOfDay(startDate)),
         fecha_fin: formatISO(endOfDay(endDate)),
-        id_cuenta: "2",
-        tz: "America/Bogota",
+        id_cuenta: clientId,
+        tz: timezone,
       });
       const res = await fetch(`/api/dashboard?${params.toString()}`, { cache: "no-store" });
       if (!res.ok) {
