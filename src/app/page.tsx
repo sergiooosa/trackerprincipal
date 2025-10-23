@@ -65,6 +65,7 @@ type ApiResponse = {
     facturacion: number;
     anuncio_origen: string | null;
     resumen_ia: string | null;
+    link_llamada?: string | null;
   }>;
   adsKpis?: {
     spend: number;
@@ -90,6 +91,8 @@ type ApiResponse = {
     cash_collected: number;
     spend_allocated: number;
     shows?: number;
+    close_rate_pct?: number;
+    llamadas_pendientes?: number;
   }>;
   hoy?: {
     fecha: string;
@@ -170,8 +173,8 @@ export default function Home() {
   const series = dataset?.series ?? [];
   const closers = useMemo(() => (dataset?.closers ?? []).map((c) => ({
     ...c,
-    // Close rate: llamadas calificadas / llamadas cerradas (corregido)
-    tasa_cierre: c.llamadas_tomadas && c.cierres ? (c.cierres / c.llamadas_tomadas) * 100 : 0,
+    // Close rate: cierres / llamadas calificadas (corregido)
+    tasa_cierre: c.reuniones_calificadas && c.cierres ? (c.cierres / c.reuniones_calificadas) * 100 : 0,
     // Show rate: shows / reuniones calificadas
     tasa_show: c.reuniones_calificadas && c.shows ? (c.shows / c.reuniones_calificadas) * 100 : 0,
   })), [dataset]);
@@ -332,8 +335,8 @@ export default function Home() {
               <CardHeader><CardTitle className="text-white">Llamadas cerradas (close rate)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-emerald-300">{(() => {
                 const sales = data?.kpis?.total_cierres ?? 0;
-                const shows = data?.kpis?.total_llamadas_tomadas ?? 0;
-                const pct = shows ? (sales / shows) * 100 : 0;
+                const calificadas = data?.kpis?.reuniones_calificadas ?? 0;
+                const pct = calificadas ? (sales / calificadas) * 100 : 0;
                 return `${sales.toLocaleString()} (${pct.toFixed(1)}%)`;
               })()}</CardContent>
             </Card>
@@ -473,23 +476,43 @@ export default function Home() {
             <div className="overflow-x-auto">
               <div className="min-w-full">
                 {/* Header */}
-                <div className="grid grid-cols-11 gap-3 pb-4 mb-4 border-b border-neutral-600/20">
+                <div className="grid grid-cols-13 gap-3 pb-4 mb-4 border-b border-neutral-600/20">
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Creativo</div>
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Spend</div>
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Agendas</div>
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Show Rate</div>
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Cierres</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Close Rate</div>
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Cash Collected</div>
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Ticket Promedio</div>
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Costo/Show</div>
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Costo/Agenda</div>
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">CAC</div>
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">ROAS</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Pendientes</div>
                 </div>
 
                 {/* Rows: Direct creatives */}
                 {(data?.adsByOrigin ?? [])
-                  .sort((a, b) => (b.cash_collected || 0) - (a.cash_collected || 0))
+                  .sort((a, b) => {
+                    // Prioridad 1: Los que más cash collected generaron (descendente)
+                    const cashA = a.cash_collected || 0;
+                    const cashB = b.cash_collected || 0;
+                    if (cashA !== cashB) return cashB - cashA;
+                    
+                    // Prioridad 2: Los que más agendas generaron (descendente)
+                    const agendasA = a.agendas || 0;
+                    const agendasB = b.agendas || 0;
+                    if (agendasA !== agendasB) return agendasB - agendasA;
+                    
+                    // Prioridad 3: Los que más gastaron (descendente)
+                    const spendA = a.spend_allocated || 0;
+                    const spendB = b.spend_allocated || 0;
+                    if (spendA !== spendB) return spendB - spendA;
+                    
+                    // Prioridad 4: Alfabético por nombre
+                    return (a.anuncio_origen || '').localeCompare(b.anuncio_origen || '');
+                  })
                   .map((row, index) => {
                     const spend = row.spend_allocated || 0;
                     const shows = row.shows || 0;
@@ -504,19 +527,24 @@ export default function Home() {
                     const cash = row.cash_collected ? Number(row.cash_collected) : 0;
                     const ticket = cierres ? currency(cash / cierres) : "$0";
 
+                    const closeRate = row.close_rate_pct !== undefined ? row.close_rate_pct.toFixed(1) + "%" : "—";
+                    const pendientes = row.llamadas_pendientes || 0;
+
                     return (
-                      <div key={row.anuncio_origen} className={`grid grid-cols-11 gap-3 py-3 px-2 rounded-lg ${index % 2 === 0 ? 'bg-neutral-800/10' : 'bg-transparent'} hover:bg-neutral-700/20 transition-colors`}>
+                      <div key={row.anuncio_origen} className={`grid grid-cols-13 gap-3 py-3 px-2 rounded-lg ${index % 2 === 0 ? 'bg-neutral-800/10' : 'bg-transparent'} hover:bg-neutral-700/20 transition-colors`}>
                         <div className="text-white text-sm">{row.anuncio_origen}</div>
                         <div className="text-gray-300 text-sm">{currency(spend)}</div>
                         <div className="text-cyan-300 text-sm">{agendas}</div>
                         <div className="text-cyan-300 text-sm">{showRate}</div>
                         <div className="text-emerald-400 text-sm">{cierres}</div>
+                        <div className="text-emerald-400 text-sm">{closeRate}</div>
                         <div className="text-emerald-400 text-sm">{currency(cash)}</div>
                         <div className="text-emerald-400 text-sm">{ticket}</div>
                         <div className="text-gray-300 text-sm">{cpshow}</div>
                         <div className="text-gray-300 text-sm">{cpo}</div>
                         <div className="text-gray-300 text-sm">{cac}</div>
                         <div className="text-emerald-400 text-sm">{roas}</div>
+                        <div className="text-yellow-300 text-sm">{pendientes}</div>
                       </div>
                     );
                   })}
@@ -624,7 +652,18 @@ export default function Home() {
                                       </DialogTrigger>
                                       <DialogContent className="sm:max-w-[800px] max-h-[90vh] bg-neutral-950 border-neutral-800 text-neutral-100 mx-4">
                                         <DialogHeader>
-                                          <DialogTitle>Detalle de la llamada</DialogTitle>
+                                          <DialogTitle className="flex items-center justify-between">
+                                            <span>Detalle de la llamada</span>
+                                            {e.link_llamada && (
+                                              <Button
+                                                variant="outline"
+                                                className="bg-cyan-500/10 border-cyan-400/40 text-cyan-300 hover:bg-cyan-500/20"
+                                                onClick={() => window.open(e.link_llamada || '', '_blank')}
+                                              >
+                                                🔗 Ver grabación
+                                              </Button>
+                                            )}
+                                          </DialogTitle>
                                         </DialogHeader>
                                         <div className="space-y-4 max-h-[70vh] overflow-y-auto">
                                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

@@ -154,17 +154,45 @@ export async function GET(req: NextRequest) {
     `;
 
     const closerQuery = `
+      WITH closers_eventos AS (
+        SELECT
+          closer,
+          COUNT(*) AS llamadas_tomadas,
+          COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada') AS cierres,
+          SUM(facturacion) AS facturacion_generada,
+          SUM(cash_collected) AS cash_collected,
+          COUNT(*) FILTER (WHERE LOWER(categoria) IN ('ofertada', 'cerrada')) AS reuniones_calificadas,
+          COUNT(*) AS shows
+        FROM eventos_llamadas_tiempo_real
+        WHERE id_cuenta = $1 AND (fecha_hora_evento AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date
+        GROUP BY closer
+      ),
+      closers_no_show AS (
+        SELECT
+          closer,
+          0 AS llamadas_tomadas,
+          0 AS cierres,
+          0 AS facturacion_generada,
+          0 AS cash_collected,
+          0 AS reuniones_calificadas,
+          0 AS shows
+        FROM resumenes_diarios_agendas
+        WHERE id_cuenta = $1
+          AND fecha BETWEEN $2::date AND $3::date
+          AND LOWER(TRIM(COALESCE(categoria, ''))) = 'no_show'
+          AND closer IS NOT NULL
+        GROUP BY closer
+      )
       SELECT
-        closer,
-        COUNT(*) AS llamadas_tomadas,
-        COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada') AS cierres,
-        SUM(facturacion) AS facturacion_generada,
-        SUM(cash_collected) AS cash_collected,
-        COUNT(*) FILTER (WHERE LOWER(categoria) IN ('ofertada', 'cerrada')) AS reuniones_calificadas,
-        COUNT(*) FILTER (WHERE LOWER(categoria) LIKE '%show%' OR LOWER(categoria) = 'asistio') AS shows
-      FROM eventos_llamadas_tiempo_real
-      WHERE id_cuenta = $1 AND (fecha_hora_evento AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date
-      GROUP BY closer
+        COALESCE(ce.closer, cns.closer) AS closer,
+        COALESCE(ce.llamadas_tomadas, 0) AS llamadas_tomadas,
+        COALESCE(ce.cierres, 0) AS cierres,
+        COALESCE(ce.facturacion_generada, 0) AS facturacion_generada,
+        COALESCE(ce.cash_collected, 0) AS cash_collected,
+        COALESCE(ce.reuniones_calificadas, 0) AS reuniones_calificadas,
+        COALESCE(ce.shows, 0) AS shows
+      FROM closers_eventos ce
+      FULL OUTER JOIN closers_no_show cns ON ce.closer = cns.closer
       ORDER BY facturacion_generada DESC;
     `;
 
@@ -178,7 +206,8 @@ export async function GET(req: NextRequest) {
         cash_collected,
         facturacion,
         anuncio_origen,
-        resumen_ia
+        resumen_ia,
+        link_llamada
       FROM eventos_llamadas_tiempo_real
       WHERE id_cuenta = $1 AND (fecha_hora_evento AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date
       ORDER BY fecha_hora_evento DESC;
@@ -242,13 +271,23 @@ export async function GET(req: NextRequest) {
       -- Lista de creativos y Agendas desde resumenes_diarios_agendas
       creativos_agendas AS (
         SELECT
-          LOWER(TRIM(origen)) AS creativo,
+          COALESCE(NULLIF(LOWER(TRIM(origen)), ''), 'organico') AS creativo,
           COUNT(*) AS agendas
         FROM resumenes_diarios_agendas a
         JOIN parametros p ON a.id_cuenta = p.id_cuenta
         WHERE a.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
-          AND origen IS NOT NULL
-        GROUP BY LOWER(TRIM(origen))
+        GROUP BY COALESCE(NULLIF(LOWER(TRIM(origen)), ''), 'organico')
+      ),
+      -- Llamadas pendientes por creativo
+      llamadas_pendientes AS (
+        SELECT
+          COALESCE(NULLIF(LOWER(TRIM(origen)), ''), 'organico') AS creativo,
+          COUNT(*) AS pendientes
+        FROM resumenes_diarios_agendas a
+        JOIN parametros p ON a.id_cuenta = p.id_cuenta
+        WHERE a.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
+          AND LOWER(TRIM(COALESCE(categoria, ''))) = 'pdte'
+        GROUP BY COALESCE(NULLIF(LOWER(TRIM(origen)), ''), 'organico')
       ),
       -- Shows (llamadas tomadas) desde eventos_llamadas_tiempo_real
       shows_creativos AS (
@@ -283,10 +322,17 @@ export async function GET(req: NextRequest) {
         COALESCE(sc.cierres, 0) AS cierres,
         COALESCE(sc.facturacion, 0) AS facturacion,
         COALESCE(sc.cash_collected, 0) AS cash_collected,
-        COALESCE(gc.gasto_total, 0) AS spend_allocated
+        COALESCE(gc.gasto_total, 0) AS spend_allocated,
+        COALESCE(lp.pendientes, 0) AS llamadas_pendientes,
+        CASE 
+          WHEN COALESCE(ca.agendas, 0) > 0 
+          THEN ROUND((COALESCE(sc.cierres, 0)::numeric / ca.agendas) * 100, 1)
+          ELSE 0
+        END AS close_rate_pct
       FROM creativos_agendas ca
       LEFT JOIN shows_creativos sc ON ca.creativo = sc.creativo
       LEFT JOIN gastos_creativos gc ON ca.creativo = gc.creativo
+      LEFT JOIN llamadas_pendientes lp ON ca.creativo = lp.creativo
       WHERE ca.creativo IS NOT NULL
       ORDER BY cierres DESC, facturacion DESC;
     `;
