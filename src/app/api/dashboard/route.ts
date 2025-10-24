@@ -295,14 +295,23 @@ export async function GET(req: NextRequest) {
           $3::date AS hasta_fecha
       ),
       -- BASE: Creativos desde resumenes_diarios_creativos (fuente principal)
+      -- Los creativos activos en el periodo seleccionado
+      creativos_periodo AS (
+        SELECT DISTINCT
+          LOWER(TRIM(nombre_de_creativo)) AS creativo
+        FROM resumenes_diarios_creativos c
+        JOIN parametros p ON c.id_cuenta = p.id_cuenta
+        WHERE c.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
+          AND nombre_de_creativo IS NOT NULL
+      ),
+      -- Gasto histórico TOTAL de cada creativo (sin filtro de fecha)
       creativos_base AS (
         SELECT
           LOWER(TRIM(nombre_de_creativo)) AS creativo,
           SUM(gasto_total_creativo) AS gasto_total
         FROM resumenes_diarios_creativos c
         JOIN parametros p ON c.id_cuenta = p.id_cuenta
-        WHERE c.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
-          AND nombre_de_creativo IS NOT NULL
+        WHERE nombre_de_creativo IS NOT NULL
         GROUP BY LOWER(TRIM(nombre_de_creativo))
       ),
       -- Creativos adicionales de agendas que no están en creativos_base
@@ -323,15 +332,15 @@ export async function GET(req: NextRequest) {
               BETWEEN p.desde_fecha AND p.hasta_fecha
           AND anuncio_origen IS NOT NULL
       ),
-      -- Todos los creativos únicos
+      -- Todos los creativos únicos (activos en el periodo)
       todos_creativos AS (
-        SELECT creativo FROM creativos_base
+        SELECT creativo FROM creativos_periodo
         UNION
         SELECT creativo FROM creativos_solo_agendas
-        WHERE creativo NOT IN (SELECT creativo FROM creativos_base)
+        WHERE creativo NOT IN (SELECT creativo FROM creativos_periodo)
         UNION
         SELECT creativo FROM creativos_solo_eventos
-        WHERE creativo NOT IN (SELECT creativo FROM creativos_base)
+        WHERE creativo NOT IN (SELECT creativo FROM creativos_periodo)
       ),
       -- Agendas por creativo
       agendas_creativo AS (
