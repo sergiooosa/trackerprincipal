@@ -199,7 +199,7 @@ export async function GET(req: NextRequest) {
     const eventsQuery = `
       WITH eventos_atendidos AS (
         SELECT
-          id_evento,
+          id_evento::text AS id_evento,
           fecha_hora_evento AT TIME ZONE $4 AS fecha_hora_evento,
           closer,
           cliente,
@@ -224,8 +224,8 @@ export async function GET(req: NextRequest) {
           0::numeric AS cash_collected,
           0::numeric AS facturacion,
           origen AS anuncio_origen,
-          NULL AS resumen_ia,
-          NULL AS link_llamada,
+          NULL::text AS resumen_ia,
+          NULL::text AS link_llamada,
           'no_show' AS tipo_registro
         FROM resumenes_diarios_agendas
         WHERE id_cuenta = $1
