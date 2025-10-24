@@ -66,6 +66,7 @@ type ApiResponse = {
     anuncio_origen: string | null;
     resumen_ia: string | null;
     link_llamada?: string | null;
+    tipo_registro?: string;
   }>;
   adsKpis?: {
     spend: number;
@@ -170,7 +171,12 @@ export default function Home() {
 
   const dataset: ApiResponse | undefined = data && !isError ? data : undefined;
   // const kpis = dataset?.kpis; // no se usa ya; KPIs vienen de adsKpis/callsKpis arriba
-  const series = dataset?.series ?? [];
+  const series = useMemo(() => {
+    return (dataset?.series ?? []).map(item => ({
+      ...item,
+      fecha: format(new Date(item.fecha), 'yyyy-MM-dd')
+    }));
+  }, [dataset]);
   const closers = useMemo(() => (dataset?.closers ?? []).map((c) => ({
     ...c,
     // Close rate: cierres / llamadas calificadas (corregido)
@@ -604,12 +610,21 @@ export default function Home() {
                                 const q = (closerFilter[c.closer] ?? '').toLowerCase().trim();
                                 if (!q) return true;
                                 return (e.cliente ?? '').toLowerCase().includes(q);
-                              }).map((e) => (
+                              }).map((e) => {
+                                const esNoShow = e.tipo_registro === 'no_show';
+                                return (
                                 <TableRow key={e.id_evento}>
                                   <TableCell className="text-white">{new Date(e.fecha_hora_evento).toLocaleString()}</TableCell>
                                   <TableCell className="text-white">{e.cliente ?? "—"}</TableCell>
                                   <TableCell className="text-white">{(() => { 
-                                    // Siempre mostrar "Sí" para Asistió por defecto
+                                    // No Show muestra "No", demás muestran "Sí"
+                                    if (esNoShow) {
+                                      return <span className="inline-flex items-center">
+                                        <span className="w-6 h-6 rounded-full inline-flex items-center justify-center text-[10px] font-semibold border bg-red-500/20 text-red-300 border-red-400/40">
+                                          No
+                                        </span>
+                                      </span>;
+                                    }
                                     return <span className="inline-flex items-center">
                                       <span className="w-6 h-6 rounded-full inline-flex items-center justify-center text-[10px] font-semibold border bg-emerald-500/20 text-emerald-300 border-emerald-400/40">
                                         Sí
@@ -617,6 +632,13 @@ export default function Home() {
                                     </span>; 
                                   })()}</TableCell>
                                   <TableCell className="text-white">{(() => { 
+                                    if (esNoShow) {
+                                      return <span className="inline-flex items-center">
+                                        <span className="w-6 h-6 rounded-full inline-flex items-center justify-center text-[10px] font-semibold border bg-red-500/20 text-red-300 border-red-400/40">
+                                          No
+                                        </span>
+                                      </span>;
+                                    }
                                     const normalized = (e.categoria ?? '')
                                       .toString()
                                       .toLowerCase()
@@ -631,6 +653,13 @@ export default function Home() {
                                     </span>; 
                                   })()}</TableCell>
                                   <TableCell className="text-white">{(() => { 
+                                    if (esNoShow) {
+                                      return <span className="inline-flex items-center">
+                                        <span className="w-6 h-6 rounded-full inline-flex items-center justify-center text-[10px] font-semibold border bg-red-500/20 text-red-300 border-red-400/40">
+                                          No
+                                        </span>
+                                      </span>;
+                                    }
                                     const normalized = (e.categoria ?? '')
                                       .toString()
                                       .toLowerCase()
@@ -648,7 +677,7 @@ export default function Home() {
                                   <TableCell className="text-white space-x-2">
                                     <Dialog>
                                       <DialogTrigger asChild>
-                                        <Button variant="outline" className="bg-neutral-900 border-neutral-800 text-neutral-200 hover:border-cyan-400/40 hover:text-cyan-300">Ver notas</Button>
+                                        <Button disabled={esNoShow} variant="outline" className="bg-neutral-900 border-neutral-800 text-neutral-200 hover:border-cyan-400/40 hover:text-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed">Ver notas</Button>
                                       </DialogTrigger>
                                       <DialogContent className="sm:max-w-[800px] max-h-[90vh] bg-neutral-950 border-neutral-800 text-neutral-100 mx-4">
                                         <DialogHeader>
@@ -681,7 +710,7 @@ export default function Home() {
 
                                     <Dialog>
                                       <DialogTrigger asChild>
-                                        <Button variant="outline" className="bg-neutral-900 border-neutral-800 text-neutral-200 hover:border-emerald-400/40 hover:text-emerald-300">Configurar</Button>
+                                        <Button disabled={esNoShow} variant="outline" className="bg-neutral-900 border-neutral-800 text-neutral-200 hover:border-emerald-400/40 hover:text-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed">Configurar</Button>
                                       </DialogTrigger>
                                       <DialogContent className="sm:max-w-[560px] bg-neutral-950 border-neutral-800 text-neutral-100 mx-4">
                                         <DialogHeader>
@@ -738,7 +767,8 @@ export default function Home() {
                                     </Dialog>
                                   </TableCell>
                                 </TableRow>
-                              ))}
+                              );
+                              })}
                             </TableBody>
                           </Table>
                         </div>

@@ -197,32 +197,58 @@ export async function GET(req: NextRequest) {
     `;
 
     const eventsQuery = `
-      SELECT
-        id_evento,
-        fecha_hora_evento,
-        closer,
-        cliente,
-        categoria,
-        cash_collected,
-        facturacion,
-        anuncio_origen,
-        resumen_ia,
-        link_llamada
-      FROM eventos_llamadas_tiempo_real
-      WHERE id_cuenta = $1 AND (fecha_hora_evento AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date
+      WITH eventos_atendidos AS (
+        SELECT
+          id_evento,
+          fecha_hora_evento AT TIME ZONE $4 AS fecha_hora_evento,
+          closer,
+          cliente,
+          LOWER(TRIM(categoria)) AS categoria,
+          cash_collected,
+          facturacion,
+          anuncio_origen,
+          resumen_ia,
+          link_llamada,
+          'evento' AS tipo_registro
+        FROM eventos_llamadas_tiempo_real
+        WHERE id_cuenta = $1 
+          AND (fecha_hora_evento AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date
+      ),
+      eventos_no_show AS (
+        SELECT
+          'NS-' || id_registro_agenda::text AS id_evento,
+          (fecha AT TIME ZONE $4)::timestamp AS fecha_hora_evento,
+          COALESCE(closer, 'Sin asignar') AS closer,
+          nombre_de_lead AS cliente,
+          'no_show' AS categoria,
+          0::numeric AS cash_collected,
+          0::numeric AS facturacion,
+          origen AS anuncio_origen,
+          NULL AS resumen_ia,
+          NULL AS link_llamada,
+          'no_show' AS tipo_registro
+        FROM resumenes_diarios_agendas
+        WHERE id_cuenta = $1
+          AND fecha BETWEEN $2::date AND $3::date
+          AND LOWER(TRIM(COALESCE(categoria, ''))) = 'no_show'
+          AND closer IS NOT NULL
+      )
+      SELECT * FROM eventos_atendidos
+      UNION ALL
+      SELECT * FROM eventos_no_show
       ORDER BY fecha_hora_evento DESC;
     `;
 
     const pendientesQuery = `
       SELECT
         id_registro_agenda,
-        fecha,
+        (fecha AT TIME ZONE $4)::date AS fecha,
         nombre_de_lead,
         origen,
         email_lead,
-        categoria,
+        LOWER(TRIM(categoria)) AS categoria,
         closer,
-        "fecha de la reunion" AS fecha_de_la_reunion
+        ("fecha de la reunion" AT TIME ZONE $4)::date AS fecha_de_la_reunion
       FROM resumenes_diarios_agendas
       WHERE id_cuenta = $1
         AND fecha BETWEEN $2::date AND $3::date
@@ -268,8 +294,47 @@ export async function GET(req: NextRequest) {
           $2::date AS desde_fecha,
           $3::date AS hasta_fecha
       ),
-      -- Lista de creativos y Agendas desde resumenes_diarios_agendas
-      creativos_agendas AS (
+      -- BASE: Creativos desde resumenes_diarios_creativos (fuente principal)
+      creativos_base AS (
+        SELECT
+          LOWER(TRIM(nombre_de_creativo)) AS creativo,
+          SUM(gasto_total_creativo) AS gasto_total
+        FROM resumenes_diarios_creativos c
+        JOIN parametros p ON c.id_cuenta = p.id_cuenta
+        WHERE c.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
+          AND nombre_de_creativo IS NOT NULL
+        GROUP BY LOWER(TRIM(nombre_de_creativo))
+      ),
+      -- Creativos adicionales de agendas que no están en creativos_base
+      creativos_solo_agendas AS (
+        SELECT DISTINCT
+          COALESCE(NULLIF(LOWER(TRIM(origen)), ''), 'organico') AS creativo
+        FROM resumenes_diarios_agendas a
+        JOIN parametros p ON a.id_cuenta = p.id_cuenta
+        WHERE a.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
+      ),
+      -- Creativos adicionales de eventos que no están en creativos_base
+      creativos_solo_eventos AS (
+        SELECT DISTINCT
+          LOWER(TRIM(anuncio_origen)) AS creativo
+        FROM eventos_llamadas_tiempo_real e
+        JOIN parametros p ON e.id_cuenta = p.id_cuenta
+        WHERE (e.fecha_hora_evento AT TIME ZONE p.zona)::date 
+              BETWEEN p.desde_fecha AND p.hasta_fecha
+          AND anuncio_origen IS NOT NULL
+      ),
+      -- Todos los creativos únicos
+      todos_creativos AS (
+        SELECT creativo FROM creativos_base
+        UNION
+        SELECT creativo FROM creativos_solo_agendas
+        WHERE creativo NOT IN (SELECT creativo FROM creativos_base)
+        UNION
+        SELECT creativo FROM creativos_solo_eventos
+        WHERE creativo NOT IN (SELECT creativo FROM creativos_base)
+      ),
+      -- Agendas por creativo
+      agendas_creativo AS (
         SELECT
           COALESCE(NULLIF(LOWER(TRIM(origen)), ''), 'organico') AS creativo,
           COUNT(*) AS agendas
@@ -278,8 +343,8 @@ export async function GET(req: NextRequest) {
         WHERE a.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
         GROUP BY COALESCE(NULLIF(LOWER(TRIM(origen)), ''), 'organico')
       ),
-      -- Llamadas pendientes por creativo
-      llamadas_pendientes AS (
+      -- Pendientes por creativo
+      pendientes_creativo AS (
         SELECT
           COALESCE(NULLIF(LOWER(TRIM(origen)), ''), 'organico') AS creativo,
           COUNT(*) AS pendientes
@@ -289,12 +354,12 @@ export async function GET(req: NextRequest) {
           AND LOWER(TRIM(COALESCE(categoria, ''))) = 'pdte'
         GROUP BY COALESCE(NULLIF(LOWER(TRIM(origen)), ''), 'organico')
       ),
-      -- Shows (llamadas tomadas) desde eventos_llamadas_tiempo_real
-      shows_creativos AS (
+      -- Shows, cierres y facturación por creativo
+      resultados_creativo AS (
         SELECT
           LOWER(TRIM(anuncio_origen)) AS creativo,
           COUNT(*) AS shows,
-          COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada') AS cierres,
+          COUNT(*) FILTER (WHERE LOWER(TRIM(categoria)) = 'cerrada') AS cierres,
           SUM(facturacion) AS facturacion,
           SUM(cash_collected) AS cash_collected
         FROM eventos_llamadas_tiempo_real e
@@ -303,37 +368,27 @@ export async function GET(req: NextRequest) {
               BETWEEN p.desde_fecha AND p.hasta_fecha
           AND anuncio_origen IS NOT NULL
         GROUP BY LOWER(TRIM(anuncio_origen))
-      ),
-      -- Gastos por creativo desde resumenes_diarios_creativos
-      gastos_creativos AS (
-        SELECT
-          LOWER(TRIM(nombre_de_creativo)) AS creativo,
-          SUM(gasto_total_creativo) AS gasto_total
-        FROM resumenes_diarios_creativos c
-        JOIN parametros p ON c.id_cuenta = p.id_cuenta
-        WHERE c.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
-          AND nombre_de_creativo IS NOT NULL
-        GROUP BY LOWER(TRIM(nombre_de_creativo))
       )
       SELECT
-        ca.creativo AS anuncio_origen,
-        COALESCE(ca.agendas, 0) AS agendas,
-        COALESCE(sc.shows, 0) AS shows,
-        COALESCE(sc.cierres, 0) AS cierres,
-        COALESCE(sc.facturacion, 0) AS facturacion,
-        COALESCE(sc.cash_collected, 0) AS cash_collected,
-        COALESCE(gc.gasto_total, 0) AS spend_allocated,
-        COALESCE(lp.pendientes, 0) AS llamadas_pendientes,
+        tc.creativo AS anuncio_origen,
+        COALESCE(ac.agendas, 0) AS agendas,
+        COALESCE(rc.shows, 0) AS shows,
+        COALESCE(rc.cierres, 0) AS cierres,
+        COALESCE(rc.facturacion, 0) AS facturacion,
+        COALESCE(rc.cash_collected, 0) AS cash_collected,
+        COALESCE(cb.gasto_total, 0) AS spend_allocated,
+        COALESCE(pc.pendientes, 0) AS llamadas_pendientes,
         CASE 
-          WHEN COALESCE(ca.agendas, 0) > 0 
-          THEN ROUND((COALESCE(sc.cierres, 0)::numeric / ca.agendas) * 100, 1)
+          WHEN COALESCE(ac.agendas, 0) > 0 
+          THEN ROUND((COALESCE(rc.cierres, 0)::numeric / ac.agendas) * 100, 1)
           ELSE 0
         END AS close_rate_pct
-      FROM creativos_agendas ca
-      LEFT JOIN shows_creativos sc ON ca.creativo = sc.creativo
-      LEFT JOIN gastos_creativos gc ON ca.creativo = gc.creativo
-      LEFT JOIN llamadas_pendientes lp ON ca.creativo = lp.creativo
-      WHERE ca.creativo IS NOT NULL
+      FROM todos_creativos tc
+      LEFT JOIN creativos_base cb ON tc.creativo = cb.creativo
+      LEFT JOIN agendas_creativo ac ON tc.creativo = ac.creativo
+      LEFT JOIN pendientes_creativo pc ON tc.creativo = pc.creativo
+      LEFT JOIN resultados_creativo rc ON tc.creativo = rc.creativo
+      WHERE tc.creativo IS NOT NULL
       ORDER BY cierres DESC, facturacion DESC;
     `;
 
@@ -448,7 +503,7 @@ export async function GET(req: NextRequest) {
           client.query(callsKpisQuery, params3),
           client.query(adsByOriginQuery, params4),
           client.query(hoyQuery, hoyParams),
-          client.query(pendientesQuery, params3),
+          client.query(pendientesQuery, params4),
         ]);
       } catch (queryError) {
         console.error('Error en consultas:', queryError);
