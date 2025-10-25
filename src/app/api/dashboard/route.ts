@@ -32,8 +32,8 @@ export async function GET(req: NextRequest) {
       eventos_llamadas AS (
         SELECT
           COUNT(*) AS total_llamadas_tomadas,
-          COUNT(*) FILTER (WHERE LOWER(categoria) IN ('ofertada', 'cerrada')) AS reuniones_calificadas,
-          COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada') AS llamadas_cerradas,
+          COUNT(*) FILTER (WHERE LOWER(TRIM(categoria)) IN ('ofertada', 'cerrada')) AS reuniones_calificadas,
+          COUNT(*) FILTER (WHERE LOWER(TRIM(categoria)) = 'cerrada') AS llamadas_cerradas,
           SUM(cash_collected) AS cash_collected_total,
           SUM(facturacion) AS facturacion_total
         FROM eventos_llamadas_tiempo_real e
