@@ -66,6 +66,10 @@ export async function GET(req: NextRequest) {
           COUNT(*) FILTER (
             WHERE LOWER(TRIM(COALESCE(categoria, ''))) = 'no_show'
           ) AS no_show_count,
+          -- Calificadas desde agendas: Ofertada o Cerrada
+          COUNT(*) FILTER (
+            WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('ofertada','cerrada')
+          ) AS agendas_calificadas,
           -- Agendas efectivas: las que NO son PDTE ni Canceladas
           COUNT(*) FILTER (
             WHERE LOWER(TRIM(COALESCE(categoria, ''))) NOT IN ('pdte', 'cancelada')
@@ -94,8 +98,8 @@ export async function GET(req: NextRequest) {
         -- Llamadas tomadas (asistidas) solo desde agendas, excluyendo PDTE/Cancelada/no_show
         COALESCE(a.agendas_asistidas, 0) AS llamadas_tomadas_agendas,
         
-        -- Métricas de Llamadas (desde eventos_llamadas_tiempo_real)
-        COALESCE(e.reuniones_calificadas, 0) AS reuniones_calificadas,
+        -- Métricas de Llamadas (calificadas desde agendas)
+        COALESCE(a.agendas_calificadas, 0) AS reuniones_calificadas,
         COALESCE(e.total_llamadas_tomadas, 0) AS total_llamadas_tomadas,
         COALESCE(e.llamadas_cerradas, 0) AS total_cierres,
         COALESCE(e.facturacion_total, 0.00) AS total_facturacion,
