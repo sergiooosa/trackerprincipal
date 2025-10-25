@@ -87,11 +87,14 @@ type ApiResponse = {
   adsByOrigin?: Array<{
     anuncio_origen: string;
     agendas: number;
+    tomadas: number;
+    calificadas: number;
     cierres: number;
     facturacion: number;
     cash_collected: number;
     spend_allocated: number;
     shows?: number;
+    show_rate_pct?: number;
     close_rate_pct?: number;
     llamadas_pendientes?: number;
   }>;
@@ -328,6 +331,10 @@ export default function Home() {
               <CardHeader><CardTitle className="text-white">Reuniones calificadas</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-cyan-300">{(data?.kpis?.reuniones_calificadas ?? 0).toLocaleString()}</CardContent>
             </Card>
+            <Card className="bg-gradient-to-br from-[#0b1420] to-[#0a0f18] border border-[#1b2a40] shadow-[0_0_0_1px_rgba(59,130,246,0.12),0_10px_40px_-10px_rgba(59,130,246,0.25)]">
+              <CardHeader><CardTitle className="text-white">Total Llamadas Tomadas (Shows)</CardTitle></CardHeader>
+              <CardContent className="text-2xl font-semibold text-blue-300">{(data?.kpis?.total_llamadas_tomadas ?? 0).toLocaleString()}</CardContent>
+            </Card>
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader><CardTitle className="text-white">Reuniones asistidas (show rate)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-cyan-300">{(() => {
@@ -482,10 +489,12 @@ export default function Home() {
             <div className="overflow-x-auto">
               <div className="min-w-full">
                 {/* Header */}
-                <div className="grid grid-cols-13 gap-3 pb-4 mb-4 border-b border-neutral-600/20">
+                <div className="grid grid-cols-15 gap-3 pb-4 mb-4 border-b border-neutral-600/20">
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Creativo</div>
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Spend</div>
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Agendas</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Tomadas</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Calificadas</div>
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Show Rate</div>
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Cierres</div>
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Close Rate</div>
@@ -521,14 +530,15 @@ export default function Home() {
                   })
                   .map((row, index) => {
                     const spend = row.spend_allocated || 0;
-                    const shows = row.shows || 0;
+                    const tomadas = row.tomadas || 0;
+                    const calificadas = row.calificadas || 0;
                     const cierres = row.cierres || 0;
                     const agendas = row.agendas || 0;
                     const fact = row.facturacion || 0;
-                    const showRate = agendas ? ((shows / agendas) * 100).toFixed(1) + "%" : "—";
+                    const showRate = row.show_rate_pct !== undefined ? row.show_rate_pct.toFixed(1) + "%" : "—";
                     const roas = spend ? (fact / spend).toFixed(2) + "x" : "—";
                     const cpo = agendas ? currency(spend / agendas) : "$0";
-                    const cpshow = shows ? currency(spend / shows) : "$0";
+                    const cpshow = tomadas ? currency(spend / tomadas) : "$0";
                     const cac = cierres ? currency(spend / cierres) : "$0";
                     const cash = row.cash_collected ? Number(row.cash_collected) : 0;
                     const ticket = cierres ? currency(cash / cierres) : "$0";
@@ -537,10 +547,12 @@ export default function Home() {
                     const pendientes = row.llamadas_pendientes || 0;
 
                     return (
-                      <div key={row.anuncio_origen} className={`grid grid-cols-13 gap-3 py-3 px-2 rounded-lg ${index % 2 === 0 ? 'bg-neutral-800/10' : 'bg-transparent'} hover:bg-neutral-700/20 transition-colors`}>
+                      <div key={row.anuncio_origen} className={`grid grid-cols-15 gap-3 py-3 px-2 rounded-lg ${index % 2 === 0 ? 'bg-neutral-800/10' : 'bg-transparent'} hover:bg-neutral-700/20 transition-colors`}>
                         <div className="text-white text-sm">{row.anuncio_origen}</div>
                         <div className="text-gray-300 text-sm">{currency(spend)}</div>
                         <div className="text-cyan-300 text-sm">{agendas}</div>
+                        <div className="text-blue-300 text-sm">{tomadas}</div>
+                        <div className="text-purple-300 text-sm">{calificadas}</div>
                         <div className="text-cyan-300 text-sm">{showRate}</div>
                         <div className="text-emerald-400 text-sm">{cierres}</div>
                         <div className="text-emerald-400 text-sm">{closeRate}</div>

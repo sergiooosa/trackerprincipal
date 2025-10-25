@@ -363,10 +363,12 @@ export async function GET(req: NextRequest) {
           AND LOWER(TRIM(COALESCE(categoria, ''))) = 'pdte'
         GROUP BY COALESCE(NULLIF(LOWER(TRIM(origen)), ''), 'organico')
       ),
-      -- Shows, cierres y facturación por creativo
+      -- Resultados por creativo: tomadas, calificadas, shows, cierres y facturación
       resultados_creativo AS (
         SELECT
           LOWER(TRIM(anuncio_origen)) AS creativo,
+          COUNT(*) AS tomadas,
+          COUNT(*) FILTER (WHERE LOWER(TRIM(categoria)) IN ('ofertada', 'cerrada')) AS calificadas,
           COUNT(*) AS shows,
           COUNT(*) FILTER (WHERE LOWER(TRIM(categoria)) = 'cerrada') AS cierres,
           SUM(facturacion) AS facturacion,
@@ -381,12 +383,19 @@ export async function GET(req: NextRequest) {
       SELECT
         tc.creativo AS anuncio_origen,
         COALESCE(ac.agendas, 0) AS agendas,
+        COALESCE(rc.tomadas, 0) AS tomadas,
+        COALESCE(rc.calificadas, 0) AS calificadas,
         COALESCE(rc.shows, 0) AS shows,
         COALESCE(rc.cierres, 0) AS cierres,
         COALESCE(rc.facturacion, 0) AS facturacion,
         COALESCE(rc.cash_collected, 0) AS cash_collected,
         COALESCE(cb.gasto_total, 0) AS spend_allocated,
         COALESCE(pc.pendientes, 0) AS llamadas_pendientes,
+        CASE 
+          WHEN COALESCE(ac.agendas, 0) > 0 
+          THEN ROUND((COALESCE(rc.tomadas, 0)::numeric / ac.agendas) * 100, 1)
+          ELSE 0
+        END AS show_rate_pct,
         CASE 
           WHEN COALESCE(ac.agendas, 0) > 0 
           THEN ROUND((COALESCE(rc.cierres, 0)::numeric / ac.agendas) * 100, 1)
