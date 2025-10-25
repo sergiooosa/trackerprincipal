@@ -573,21 +573,31 @@ export async function GET(req: NextRequest) {
       type AdsByOriginRow = {
         anuncio_origen: string;
         agendas: number | string | null;
+        tomadas?: number | string | null;
+        calificadas?: number | string | null;
         shows: number | string | null;
         cierres: number | string | null;
         facturacion: number | string | null;
         cash_collected: number | string | null;
         spend_allocated: number | string | null;
+        llamadas_pendientes?: number | string | null;
+        show_rate_pct?: number | string | null;
+        close_rate_pct?: number | string | null;
       };
 
       const adsByOrigin = (adsByOriginRows as AdsByOriginRow[]).map((r) => ({
         anuncio_origen: r.anuncio_origen,
         agendas: Number(r.agendas) || 0,
+        tomadas: Number(r.tomadas ?? 0) || 0,
+        calificadas: Number(r.calificadas ?? 0) || 0,
         shows: Number(r.shows) || 0,
         cierres: Number(r.cierres) || 0,
         facturacion: Number(r.facturacion) || 0,
         cash_collected: Number(r.cash_collected) || 0,
         spend_allocated: Number(r.spend_allocated) || 0,
+        llamadas_pendientes: Number(r.llamadas_pendientes ?? 0) || 0,
+        show_rate_pct: r.show_rate_pct !== null && r.show_rate_pct !== undefined ? Number(r.show_rate_pct) : undefined,
+        close_rate_pct: r.close_rate_pct !== null && r.close_rate_pct !== undefined ? Number(r.close_rate_pct) : undefined,
       }));
 
       const hoy = hoyRow
