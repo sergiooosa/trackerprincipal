@@ -621,6 +621,7 @@ export async function GET(req: NextRequest) {
           vsl_engagement: Number(kpiRow.vsl_engagement) || 0,
           reuniones_agendadas: Number(kpiRow.reuniones_agendadas) || 0,
           agendas_efectivas: Number(kpiRow.agendas_efectivas) || 0,
+          llamadas_pendientes: Number(kpiRow.llamadas_pendientes) || 0,
           reuniones_calificadas: Number(kpiRow.reuniones_calificadas) || 0,
           cash_collected: Number(kpiRow.cash_collected) || 0,
           ticket_promedio: Number(kpiRow.ticket_promedio) || 0,
