@@ -82,7 +82,10 @@ export async function GET(req: NextRequest) {
         COALESCE(d.vsl_engagement, 0.00) AS vsl_engagement,
         COALESCE(a.reuniones_agendadas, 0) AS reuniones_agendadas,
         COALESCE(a.agendas_canceladas, 0) AS llamadas_canceladas,
+        COALESCE(a.agendas_pdte, 0) AS llamadas_pendientes,
         COALESCE(a.no_show_count, 0) AS no_show_agendas,
+        -- Agendas efectivas: las que realmente deberían convertirse en llamadas
+        -- (Agendadas - Canceladas - Pendientes)
         GREATEST(
           COALESCE(a.reuniones_agendadas, 0) - COALESCE(a.agendas_canceladas, 0) - COALESCE(a.agendas_pdte, 0),
           0

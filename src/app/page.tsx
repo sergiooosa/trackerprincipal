@@ -38,6 +38,7 @@ type ApiResponse = {
     no_show: number;
     no_show_agendas: number;
     llamadas_canceladas: number;
+    llamadas_pendientes: number;
   };
   series: Array<{
     fecha: string;
@@ -335,8 +336,8 @@ export default function Home() {
               <CardHeader><CardTitle className="text-white">Reuniones asistidas (show rate)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-cyan-300">{(() => {
                 const shows = data?.kpis?.total_llamadas_tomadas ?? 0;
-                const agendasEfectivas = data?.kpis?.agendas_efectivas ?? 0; // Reuniones Agendadas - Canceladas - Pendientes
-                const pct = agendasEfectivas ? (shows / agendasEfectivas) * 100 : 0;
+                const agendasEfectivas = data?.kpis?.agendas_efectivas ?? 0; // Agendadas - Canceladas - Pendientes
+                const pct = agendasEfectivas > 0 ? (shows / agendasEfectivas) * 100 : 0;
                 return `${shows.toLocaleString()} (${pct.toFixed(1)}%)`;
               })()}</CardContent>
             </Card>
@@ -353,6 +354,11 @@ export default function Home() {
             <Card className="bg-gradient-to-br from-[#220b0b] to-[#150a0a] border border-[#4a1b1b] shadow-[0_0_0_1px_rgba(248,113,113,0.15),0_10px_40px_-10px_rgba(248,113,113,0.3)]">
               <CardHeader><CardTitle className="text-white">Llamadas canceladas</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-red-300">{(data?.kpis?.llamadas_canceladas ?? 0).toLocaleString()}</CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-[#1f1a0b] to-[#13100a] border border-[#3a321b] shadow-[0_0_0_1px_rgba(234,179,8,0.15),0_10px_40px_-10px_rgba(234,179,8,0.3)]">
+              <CardHeader><CardTitle className="text-white">Llamadas pendientes (PDTE)</CardTitle></CardHeader>
+              <CardContent className="text-2xl font-semibold text-yellow-300">{(data?.kpis?.llamadas_pendientes ?? 0).toLocaleString()}</CardContent>
             </Card>
 
             <Card className="bg-gradient-to-br from-[#1f1510] to-[#130f0a] border border-[#3a2d1b] shadow-[0_0_0_1px_rgba(251,146,60,0.15),0_10px_40px_-10px_rgba(251,146,60,0.3)]">
