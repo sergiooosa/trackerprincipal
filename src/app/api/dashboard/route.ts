@@ -61,6 +61,9 @@ export async function GET(req: NextRequest) {
             WHERE LOWER(TRIM(COALESCE(categoria, ''))) = 'cancelada'
           ) AS agendas_canceladas,
           COUNT(*) FILTER (
+            WHERE LOWER(TRIM(COALESCE(categoria, ''))) = 'pdte'
+          ) AS agendas_pdte,
+          COUNT(*) FILTER (
             WHERE LOWER(TRIM(COALESCE(categoria, ''))) <> 'pdte'
           ) AS agendas_sin_pdte,
           COUNT(*) FILTER (
@@ -81,7 +84,7 @@ export async function GET(req: NextRequest) {
         COALESCE(a.agendas_canceladas, 0) AS llamadas_canceladas,
         COALESCE(a.no_show_count, 0) AS no_show_agendas,
         GREATEST(
-          COALESCE(a.agendas_sin_pdte, 0) - COALESCE(a.agendas_canceladas, 0),
+          COALESCE(a.reuniones_agendadas, 0) - COALESCE(a.agendas_canceladas, 0) - COALESCE(a.agendas_pdte, 0),
           0
         ) AS agendas_efectivas,
         
