@@ -69,7 +69,11 @@ export async function GET(req: NextRequest) {
           -- Agendas efectivas: las que NO son PDTE ni Canceladas
           COUNT(*) FILTER (
             WHERE LOWER(TRIM(COALESCE(categoria, ''))) NOT IN ('pdte', 'cancelada')
-          ) AS agendas_validas
+          ) AS agendas_validas,
+          -- Asistidas desde agendas: excluir PDTE, Cancelada y no_show
+          COUNT(*) FILTER (
+            WHERE LOWER(TRIM(COALESCE(categoria, ''))) NOT IN ('pdte', 'cancelada', 'no_show')
+          ) AS agendas_asistidas
         FROM resumenes_diarios_agendas ra
         JOIN parametros p ON ra.id_cuenta = p.id_cuenta
         WHERE ra.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
@@ -85,8 +89,10 @@ export async function GET(req: NextRequest) {
         COALESCE(a.agendas_canceladas, 0) AS llamadas_canceladas,
         COALESCE(a.agendas_pdte, 0) AS llamadas_pendientes,
         COALESCE(a.no_show_count, 0) AS no_show_agendas,
-        -- Agendas efectivas para Show Rate: Agendadas - Canceladas (PDTE se ignora del denominador)
-        GREATEST(COALESCE(a.reuniones_agendadas, 0) - COALESCE(a.agendas_canceladas, 0), 0) AS agendas_efectivas,
+        -- Agendas efectivas: las que NO son PDTE ni Canceladas
+        COALESCE(a.agendas_validas, 0) AS agendas_efectivas,
+        -- Llamadas tomadas (asistidas) solo desde agendas, excluyendo PDTE/Cancelada/no_show
+        COALESCE(a.agendas_asistidas, 0) AS llamadas_tomadas_agendas,
         
         -- Métricas de Llamadas (desde eventos_llamadas_tiempo_real)
         COALESCE(e.reuniones_calificadas, 0) AS reuniones_calificadas,
@@ -614,6 +620,7 @@ export async function GET(req: NextRequest) {
           total_facturacion: Number(kpiRow.total_facturacion) || 0,
           total_gasto_ads: Number(kpiRow.total_gasto_ads) || 0,
           total_llamadas_tomadas: Number(kpiRow.total_llamadas_tomadas) || 0,
+          llamadas_tomadas_agendas: Number(kpiRow.llamadas_tomadas_agendas) || 0,
           total_cierres: Number(kpiRow.total_cierres) || 0,
           impresiones: Number(kpiRow.impresiones) || 0,
           ctr: Number(kpiRow.ctr) || 0,

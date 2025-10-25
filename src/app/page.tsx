@@ -20,6 +20,7 @@ type ApiResponse = {
     total_facturacion: number;
     total_gasto_ads: number;
     total_llamadas_tomadas: number;
+    llamadas_tomadas_agendas?: number;
     total_cierres: number;
     impresiones: number;
     ctr: number;
@@ -335,9 +336,10 @@ export default function Home() {
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader><CardTitle className="text-white">Reuniones asistidas (show rate)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-cyan-300">{(() => {
-                const shows = data?.kpis?.total_llamadas_tomadas ?? 0;
-                const agendasEfectivas = data?.kpis?.agendas_efectivas ?? 0; // Agendas que NO son PDTE ni Canceladas
-                const pct = agendasEfectivas > 0 ? (shows / agendasEfectivas) * 100 : 0;
+                // Para esta tarjeta, usamos exclusivamente resumenes_diarios_agendas
+                const shows = data?.kpis?.llamadas_tomadas_agendas ?? 0; // agendas con categoria NOT IN ('pdte','cancelada','no_show')
+                const agendasValidas = data?.kpis?.agendas_efectivas ?? 0; // agendas NOT IN ('pdte','cancelada')
+                const pct = agendasValidas > 0 ? (shows / agendasValidas) * 100 : 0;
                 return `${shows.toLocaleString()} (${pct.toFixed(1)}%)`;
               })()}</CardContent>
             </Card>
