@@ -336,7 +336,7 @@ export default function Home() {
               <CardHeader><CardTitle className="text-white">Reuniones asistidas (show rate)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-cyan-300">{(() => {
                 const shows = data?.kpis?.total_llamadas_tomadas ?? 0;
-                const agendasEfectivas = data?.kpis?.agendas_efectivas ?? 0; // Agendadas - Canceladas - Pendientes
+                const agendasEfectivas = data?.kpis?.agendas_efectivas ?? 0; // Agendas que NO son PDTE ni Canceladas
                 const pct = agendasEfectivas > 0 ? (shows / agendasEfectivas) * 100 : 0;
                 return `${shows.toLocaleString()} (${pct.toFixed(1)}%)`;
               })()}</CardContent>

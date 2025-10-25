@@ -64,11 +64,12 @@ export async function GET(req: NextRequest) {
             WHERE LOWER(TRIM(COALESCE(categoria, ''))) = 'pdte'
           ) AS agendas_pdte,
           COUNT(*) FILTER (
-            WHERE LOWER(TRIM(COALESCE(categoria, ''))) <> 'pdte'
-          ) AS agendas_sin_pdte,
-          COUNT(*) FILTER (
             WHERE LOWER(TRIM(COALESCE(categoria, ''))) = 'no_show'
-          ) AS no_show_count
+          ) AS no_show_count,
+          -- Agendas efectivas: las que NO son PDTE ni Canceladas
+          COUNT(*) FILTER (
+            WHERE LOWER(TRIM(COALESCE(categoria, ''))) NOT IN ('pdte', 'cancelada')
+          ) AS agendas_validas
         FROM resumenes_diarios_agendas ra
         JOIN parametros p ON ra.id_cuenta = p.id_cuenta
         WHERE ra.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
@@ -84,12 +85,8 @@ export async function GET(req: NextRequest) {
         COALESCE(a.agendas_canceladas, 0) AS llamadas_canceladas,
         COALESCE(a.agendas_pdte, 0) AS llamadas_pendientes,
         COALESCE(a.no_show_count, 0) AS no_show_agendas,
-        -- Agendas efectivas: las que realmente deberían convertirse en llamadas
-        -- (Agendadas - Canceladas - Pendientes)
-        GREATEST(
-          COALESCE(a.reuniones_agendadas, 0) - COALESCE(a.agendas_canceladas, 0) - COALESCE(a.agendas_pdte, 0),
-          0
-        ) AS agendas_efectivas,
+        -- Agendas efectivas: las que NO son PDTE ni Canceladas
+        COALESCE(a.agendas_validas, 0) AS agendas_efectivas,
         
         -- Métricas de Llamadas (desde eventos_llamadas_tiempo_real)
         COALESCE(e.reuniones_calificadas, 0) AS reuniones_calificadas,
