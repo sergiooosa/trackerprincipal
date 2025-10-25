@@ -85,8 +85,8 @@ export async function GET(req: NextRequest) {
         COALESCE(a.agendas_canceladas, 0) AS llamadas_canceladas,
         COALESCE(a.agendas_pdte, 0) AS llamadas_pendientes,
         COALESCE(a.no_show_count, 0) AS no_show_agendas,
-        -- Agendas efectivas: las que NO son PDTE ni Canceladas
-        COALESCE(a.agendas_validas, 0) AS agendas_efectivas,
+        -- Agendas efectivas para Show Rate: Agendadas - Canceladas (PDTE se ignora del denominador)
+        GREATEST(COALESCE(a.reuniones_agendadas, 0) - COALESCE(a.agendas_canceladas, 0), 0) AS agendas_efectivas,
         
         -- Métricas de Llamadas (desde eventos_llamadas_tiempo_real)
         COALESCE(e.reuniones_calificadas, 0) AS reuniones_calificadas,
