@@ -189,6 +189,9 @@ export default function Home() {
     // Show rate: shows / reuniones calificadas
     tasa_show: c.reuniones_calificadas && c.shows ? (c.shows / c.reuniones_calificadas) * 100 : 0,
   })), [dataset]);
+  const totalShowsEventos = useMemo(() => (dataset?.closers ?? []).reduce((sum, c) => sum + (c.shows || 0), 0), [dataset]);
+  const totalCalificadasEventos = useMemo(() => (dataset?.closers ?? []).reduce((sum, c) => sum + (c.reuniones_calificadas || 0), 0), [dataset]);
+  const totalCierresEventos = useMemo(() => (dataset?.closers ?? []).reduce((sum, c) => sum + (c.cierres || 0), 0), [dataset]);
   const events = dataset?.events ?? [];
 
   return (
@@ -331,14 +334,15 @@ export default function Home() {
             </Card>
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader><CardTitle className="text-white">Reuniones calificadas</CardTitle></CardHeader>
-              <CardContent className="text-2xl font-semibold text-cyan-300">{(data?.kpis?.reuniones_calificadas ?? 0).toLocaleString()}</CardContent>
+              <CardContent className="text-2xl font-semibold text-cyan-300">{totalCalificadasEventos.toLocaleString()}</CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader><CardTitle className="text-white">Reuniones asistidas (show rate)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-cyan-300">{(() => {
-                // Para esta tarjeta, usamos exclusivamente resumenes_diarios_agendas
-                const shows = data?.kpis?.llamadas_tomadas_agendas ?? 0; // agendas con categoria NOT IN ('pdte','cancelada','no_show')
-                const agendasValidas = data?.kpis?.agendas_efectivas ?? 0; // agendas NOT IN ('pdte','cancelada')
+                // Numerador: shows desde eventos_llamadas_tiempo_real (alineado con Leaderboard)
+                const shows = totalShowsEventos;
+                // Denominador: agendas válidas (resumenes_diarios_agendas: NOT IN ('pdte','cancelada'))
+                const agendasValidas = data?.kpis?.agendas_efectivas ?? 0;
                 const pct = agendasValidas > 0 ? (shows / agendasValidas) * 100 : 0;
                 return `${shows.toLocaleString()} (${pct.toFixed(1)}%)`;
               })()}</CardContent>
@@ -346,8 +350,8 @@ export default function Home() {
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
               <CardHeader><CardTitle className="text-white">Llamadas cerradas (close rate)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-emerald-300">{(() => {
-                const sales = data?.kpis?.total_cierres ?? 0;
-                const calificadas = data?.kpis?.reuniones_calificadas ?? 0;
+                const sales = totalCierresEventos;
+                const calificadas = totalCalificadasEventos;
                 const pct = calificadas ? (sales / calificadas) * 100 : 0;
                 return `${sales.toLocaleString()} (${pct.toFixed(1)}%)`;
               })()}</CardContent>
@@ -410,7 +414,7 @@ export default function Home() {
               <CardContent className="text-2xl font-semibold text-purple-300">
                 {(() => {
                   const cashCollected = data?.kpis?.cash_collected || 0;
-                  const llamadasCalificadas = data?.kpis?.reuniones_calificadas || 0;
+                  const llamadasCalificadas = totalCalificadasEventos;
                   return llamadasCalificadas > 0 ? currency(cashCollected / llamadasCalificadas) : "$0";
                 })()}
               </CardContent>
@@ -420,8 +424,8 @@ export default function Home() {
               <CardHeader><CardTitle className="text-white">% Calificación</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-blue-300">
                 {(() => {
-                  const asistieron = data?.kpis?.total_llamadas_tomadas || 0;
-                  const calificadas = data?.kpis?.reuniones_calificadas || 0;
+                  const asistieron = totalShowsEventos;
+                  const calificadas = totalCalificadasEventos;
                   return asistieron > 0 ? ((calificadas / asistieron) * 100).toFixed(1) + "%" : "0%";
                 })()}
               </CardContent>
