@@ -189,9 +189,18 @@ export default function Home() {
     // Show rate: shows / reuniones calificadas
     tasa_show: c.reuniones_calificadas && c.shows ? (c.shows / c.reuniones_calificadas) * 100 : 0,
   })), [dataset]);
-  const totalShowsEventos = useMemo(() => (dataset?.closers ?? []).reduce((sum, c) => sum + (c.shows || 0), 0), [dataset]);
-  const totalCalificadasEventos = useMemo(() => (dataset?.closers ?? []).reduce((sum, c) => sum + (c.reuniones_calificadas || 0), 0), [dataset]);
-  const totalCierresEventos = useMemo(() => (dataset?.closers ?? []).reduce((sum, c) => sum + (c.cierres || 0), 0), [dataset]);
+  const totalShowsEventos = useMemo(
+    () => (dataset?.closers ?? []).reduce((sum, c) => sum + Number(c.shows ?? 0), 0),
+    [dataset]
+  );
+  const totalCalificadasEventos = useMemo(
+    () => (dataset?.closers ?? []).reduce((sum, c) => sum + Number(c.reuniones_calificadas ?? 0), 0),
+    [dataset]
+  );
+  const totalCierresEventos = useMemo(
+    () => (dataset?.closers ?? []).reduce((sum, c) => sum + Number(c.cierres ?? 0), 0),
+    [dataset]
+  );
   const events = dataset?.events ?? [];
 
   return (
