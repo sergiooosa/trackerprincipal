@@ -1,473 +1,221 @@
-# AutoKpi - Tracking Automático - Contexto Completo para IA
+# CONTEXTO DEL PROYECTO (para IA y colaboradores)
 
-## 📋 Descripción General del Proyecto
+Este documento describe el proyecto de forma integral: arquitectura, entorno, consultas SQL, contratos de la API, lógica de UI y despliegue. No contiene secretos reales; todos los ejemplos de `.env` usan placeholders.
 
-**AutoKpi** es un dashboard de análisis de ventas y marketing de alto rendimiento construido con Next.js 14+. Es una aplicación web de una sola página (SPA) que se conecta a una base de datos PostgreSQL para mostrar métricas clave de negocio en tiempo real.
+## Índice
 
-### 🎯 Objetivo Principal
-Crear una interfaz futurista, limpia, extremadamente rápida y funcional que permita visualizar:
-- KPIs de ventas y marketing
-- Rendimiento de vendedores individuales ("closers")
-- Análisis de anuncios por origen
-- Series de tiempo para tendencias
-- Detalles granulares de llamadas y eventos
-
-## 🏗️ Arquitectura Técnica
-
-### Stack Tecnológico Principal
-- **Frontend**: Next.js 14+ con App Router
-- **Lenguaje**: TypeScript (strict mode)
-- **Estilos**: Tailwind CSS con tema oscuro futurista
-- **Base de Datos**: PostgreSQL con SSL
-- **Cliente DB**: `pg` (node-postgres)
-- **Visualización**: Recharts (AreaChart, BarChart)
-- **Estado**: @tanstack/react-query para server state
-- **UI Components**: shadcn/ui
-- **Fechas**: date-fns
-- **Despliegue**: Vercel
-
-### Componentes shadcn/ui Utilizados
-- `Card` - Para contenedores de KPIs y secciones
-- `Table` - Para leaderboards y datos tabulares
-- `Accordion` - Para detalles expandibles de closers
-- `Select` - Para filtros y opciones
-- `Calendar` - Para selector de fechas (con fix de hidratación)
-- `Popover` - Para dropdowns del calendario (y UI secundaria)
-- `Dialog` - Para modales a pantalla completa (notas de closers)
-- `Button` - Para acciones interactivas
-- `Input` - Para búsqueda de leads
-
-## 📁 Estructura de Archivos
-
-```
-aura-tracker/
-├── src/
-│   ├── app/
-│   │   ├── api/dashboard/route.ts    # Endpoint único de datos
-│   │   ├── layout.tsx                # Layout raíz con Providers
-│   │   ├── page.tsx                  # Dashboard principal
-│   │   ├── providers.tsx             # React Query Provider
-│   │   └── globals.css               # Estilos globales
-│   ├── components/ui/                # Componentes shadcn/ui
-│   │   ├── accordion.tsx             # (con fix text-white)
-│   │   ├── button.tsx
-│   │   ├── calendar.tsx              # (con fix hidratación)
-│   │   ├── card.tsx
-│   │   ├── input.tsx
-│   │   ├── popover.tsx
-│   │   ├── select.tsx
-│   │   └── table.tsx                 # (con fix text-white)
-│   └── lib/
-│       └── db.ts                     # Conexión PostgreSQL
-├── .env.local                        # Variables de entorno (NO subir)
-├── package.json                      # Dependencias y scripts
-└── CONTEXTO-IA.md                   # Este archivo
-```
-
-## 🗄️ Estructura de Base de Datos
-
-### Tablas Principales
-
-#### `resumenes_diarios_llamadas`
-```sql
-- id_cuenta (int) - ID de la cuenta (por defecto 2)
-- fecha (date) - Fecha del resumen
-- facturacion_total (decimal) - Facturación total del día
-- llamadas_tomadas (int) - Número de llamadas atendidas
-- llamadas_ofertadas (int) - Llamadas donde se hizo oferta
-- cierres (int) - Llamadas que resultaron en venta
-- fees (decimal) - Comisiones/fees cobrados
-```
-
-#### `resumenes_diarios_ads`
-```sql
-- id_cuenta (int) - ID de la cuenta
-- fecha (date) - Fecha del resumen
-- gasto_total_ad (decimal) - Gasto en publicidad
-- impresiones_totales (bigint) - Total de impresiones
-- clicks_unicos (int) - Clicks únicos
-- play_rate (decimal) - Tasa de reproducción VSL
-- engagement (decimal) - Engagement VSL
-- agendamientos (int) - Reuniones agendadas
-```
-
-#### `eventos_llamadas_tiempo_real`
-```sql
-- id_evento (uuid) - ID único del evento
-- id_cuenta (int) - ID de la cuenta
-- fecha_hora_evento (timestamp) - Timestamp del evento
-- closer (varchar) - Nombre del vendedor
-- cliente (varchar) - Nombre del cliente/lead
-- categoria (varchar) - Tipo de evento (show, oferta, etc.)
-- cash_collected (decimal) - Dinero cobrado
-- facturacion (decimal) - Facturación generada
-- anuncio_origen (varchar) - Origen del anuncio
-- resumen_ia (text) - Resumen generado por IA
-```
-
-## 🔌 API Endpoint
-
-### `/api/dashboard` (GET)
-
-**Parámetros requeridos:**
-- `fecha_inicio` (string, formato ISO)
-- `fecha_fin` (string, formato ISO)
-- `id_cuenta` (por defecto 2 si no se envía)
-- `tz` (zona horaria; por defecto `America/Bogota`)
-
-**Respuesta JSON:**
-```typescript
-{
-  kpis: {
-    total_facturacion: number,
-    total_gasto_ads: number,
-    total_llamadas_tomadas: number,
-    total_cierres: number,
-    impresiones: number,
-    ctr: number,
-    vsl_play_rate: number,
-    vsl_engagement: number,
-    reuniones_agendadas: number,
-    reuniones_calificadas: number,
-    cash_collected: number,
-    ticket_promedio: number,
-    cac: number,
-    costo_por_agenda_calificada: number,
-    costo_por_show: number,
-    roas: number,
-    no_show: number
-  },
-  adsKpis: {
-    spend: number,
-    impresiones: number,
-    ctr_pct: number,
-    vsl_play_rate: number,
-    vsl_engagement: number,
-    reuniones_agendadas: number
-  },
-  callsKpis: {
-    reuniones_asistidas: number,
-    reuniones_calificadas: number,
-    llamadas_cerradas: number,
-    facturacion: number,
-    fees: number
-  },
-  series: Array<{
-    fecha: string,
-    facturacion: number,
-    gasto_ads: number,
-    llamadas_tomadas: number,
-    cierres: number
-  }>,
-  closers: Array<{
-    closer: string,
-    llamadas_tomadas: number,
-    cierres: number,
-    facturacion_generada: number,
-    cash_collected: number,
-    reuniones_calificadas: number,
-    shows: number
-  }>,
-  events: Array<{
-    id_evento: string,
-    fecha_hora_evento: string,
-    closer: string,
-    cliente: string,
-    categoria: string,
-    cash_collected: number,
-    facturacion: number,
-    anuncio_origen: string,
-    resumen_ia: string
-  }>,
-  adsByOrigin: Array<{
-    anuncio_origen: string,
-    agendas: number,
-    shows?: number,
-    cierres: number,
-    facturacion: number,
-    cash_collected?: number,
-    spend_allocated: number
-  }>
-}
-```
-
-## 🎨 Diseño y UI
-
-### Tema Visual
-- **Fondo**: Gris muy oscuro (#0a0a0a, #0b0b0b)
-- **Texto principal**: Blanco (#ffffff)
-- **Texto secundario**: Gris claro (#d1d5db, #9ca3af)
-- **Colores de acento**:
-  - Cian: #22d3ee (para facturación)
-  - Azul eléctrico: #3b82f6 (para llamadas)
-  - Verde neón: #10b981 (para cierres)
-  - Púrpura: #a78bfa (para gastos)
-  - Fucsia: #f472b6 (para costos)
-
-### Efectos Visuales
-- Gradientes sutiles en las cards
-- Sombras con glow de colores
-- Bordes con opacidad
-- Backdrop blur effects
-- Micro-animaciones en hover
-
-### Layout Responsivo
-- Grid adaptativo: `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5`
-- Breakpoints Tailwind estándar
-- Tablas con scroll horizontal en móviles
-
-## 📊 Fórmulas y Cálculos de KPIs
-
-### KPIs Calculados en Backend (Query Principal)
-La nueva query principal utiliza CTEs (Common Table Expressions) para calcular todos los KPIs de manera precisa:
-
-```sql
--- Query principal con CTEs para máxima precisión
-WITH parametros AS (
-  SELECT 
-    2 AS id_cuenta,
-    'America/Bogota' AS zona,
-    (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '6 days' AS desde_fecha,
-    (NOW() AT TIME ZONE 'America/Bogota')::date AS hasta_fecha
-),
-eventos AS (
-  SELECT
-    COUNT(*) AS llamadas_tomadas,
-    COUNT(*) FILTER (WHERE LOWER(categoria) IN ('ofertada', 'cerrada')) AS reuniones_calificadas,
-    COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada') AS llamadas_cerradas,
-    SUM(cash_collected) AS cash_collected,
-    SUM(facturacion) AS facturacion
-  FROM eventos_llamadas_tiempo_real e
-  JOIN parametros p ON e.id_cuenta = p.id_cuenta
-  WHERE (e.fecha_hora_evento AT TIME ZONE p.zona)::date 
-        BETWEEN p.desde_fecha AND p.hasta_fecha
-),
-resumen_llamadas AS (
-  SELECT
-    SUM(llamadas_calendario) AS llamadas_agendadas
-  FROM resumenes_diarios_llamadas r
-  JOIN parametros p ON r.id_cuenta = p.id_cuenta
-  WHERE r.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
-),
-resumen_ads AS (
-  SELECT
-    SUM(gasto_total_ad) AS gasto_total,
-    SUM(impresiones_totales) AS impresiones,
-    ROUND(AVG(ctr), 2) AS ctr,
-    ROUND(AVG(play_rate), 2) AS play_rate,
-    ROUND(AVG(engagement), 2) AS engagement
-  FROM resumenes_diarios_ads a
-  JOIN parametros p ON a.id_cuenta = p.id_cuenta
-  WHERE a.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
-)
-```
-
-### KPIs Calculados Automáticamente
-```typescript
-// Ticket Promedio
-ticket_promedio = facturacion / llamadas_cerradas
-
-// CAC (Customer Acquisition Cost)
-cac = gasto_total / llamadas_cerradas
-
-// Costo por Agenda Calificada
-costo_por_agenda_calificada = gasto_total / reuniones_calificadas
-
-// Costo por Show
-costo_por_show = gasto_total / llamadas_tomadas
-
-// ROAS (Return on Ad Spend)
-roas = facturacion / gasto_total
-
-// No Show Rate
-no_show = GREATEST(llamadas_agendadas - llamadas_tomadas, 0)
-```
-
-### Mapeo de Datos Importante
-- `reuniones_asistidas` = `llamadas_tomadas` (de resumenes_diarios_llamadas)
-- `reuniones_calificadas` = `llamadas_ofertadas`
-- `llamadas_cerradas` = `cierres`
-- `cash_collected` = `fees` (de resumenes_diarios_llamadas)
-
-## 🔄 Gestión de Estado
-
-### React Query
-- **Query Key**: `[
-  "dashboard",
-  "id:2",
-  "tz:America/Bogota",
-  startDate.toISOString(),
-  endDate.toISOString()
-]`
-- **Cache time**: Defecto de React Query
-- **Refetch**: Automático al cambiar fechas
-- **Error handling**: Muestra mensaje de error en UI
-- **Loading**: Skeleton placeholder mientras carga
-
-### Estado Local
-```typescript
-const [startDate, setStartDate] = useState<Date>() // Fecha inicio
-const [endDate, setEndDate] = useState<Date>()     // Fecha fin
-const [closerFilter, setCloserFilter] = useState<Record<string, string>>({}) // Filtro por lead por closer
-```
-
-## 🚀 Mejoras Implementadas (v2.0)
-
-### 1. Query Principal Optimizada
-- **Implementación**: CTEs (Common Table Expressions) para máxima precisión
-- **Beneficio**: Cálculos exactos de KPIs directamente en la base de datos
-- **Resultado**: Eliminación de discrepancias entre frontend y backend
-
-### 2. Lógica de Categorías Mejorada
-- **Asistió**: Siempre muestra "Sí" por defecto
-- **Ofertado**: `categoria` contiene 'oferta', es 'ofertada', O está cerrado
-- **Cerrado**: `categoria` es 'cerrada' O `facturacion > 0`
-- **Lógica**: Si está cerrado, automáticamente fue ofertado (no puedes vender sin ofertar)
-- **Beneficio**: Detección precisa del estado real de cada llamada con lógica coherente
-
-### 3. UI/UX Mejorada
-- **Resumen por métodos**: Ahora ocupa 100% del ancho disponible
-- **Modal de notas**: Márgenes corregidos, scroll interno, altura controlada
-- **Leaderboard**: Estados de llamadas más precisos y visuales mejorados
-- **Botón de fechas**: Colores corregidos para mejor visibilidad (texto blanco)
-- **Doble ROAS**: ROAS de facturación y ROAS de cash collected
-
-### 4. Resumen por Métodos de Adquisición - Lógica Avanzada
-- **Agendamientos**: Desde `resumenes_diarios_agendas.origen` con conteo real
-- **Gastos**: Desde `resumenes_diarios_creativos.nombre_de_creativo` + `gasto_total_creativo`
-- **Cierres**: Con matching por `email_lead` entre tablas para precisión temporal
-- **Lógica de Fechas**: Cierres se reportan en el mes de agendamiento, no de la llamada
-- **Matching por Email**: `resumenes_diarios_agendas.email_lead` = `eventos_llamadas_tiempo_real.email_lead`
-- **Filtrado Inteligente**: Solo muestra creativos con actividad en el rango de fechas
-- **Normalización**: `LOWER(TRIM())` en todos los nombres de creativos para matching perfecto
-- **Manejo de Datos Vacíos**: Compatible con instalaciones desde cero (sin errores)
-
-### 5. KPIs Calculados en Backend
-- **Ticket promedio**: `facturacion / llamadas_cerradas`
-- **CAC**: `gasto_total / llamadas_cerradas`
-- **Costo por agenda calificada**: `gasto_total / reuniones_calificadas`
-- **Costo por show**: `gasto_total / llamadas_tomadas`
-- **ROAS (Facturación)**: `facturacion / gasto_total`
-- **ROAS (Cash Collected)**: `cash_collected / gasto_total`
-- **No Show**: `GREATEST(llamadas_agendadas - llamadas_tomadas, 0)`
-
-## 🐛 Problemas Conocidos y Soluciones
-
-### 1. Error de Hidratación (Calendar)
-**Problema**: Diferencias en formato de fecha entre servidor y cliente
-**Solución**: 
-- Usar `day.date.toISOString().split('T')[0]` para `data-day`
-- Fijar locale en `formatMonthDropdown` a "en-US"
-
-### 2. TypeError con .toFixed()
-**Problema**: Valores null/undefined de la DB
-**Solución**: 
-- Coerción explícita con `Number()` en API
-- Valores por defecto con `?? 0`
-- Guards en frontend: `Number(value || 0).toFixed(2)`
-
-### 3. Variables de Entorno en Vercel
-**Problema**: ECONNREFUSED cuando env vars no están configuradas
-**Solución**: Valores por defecto en `lib/db.ts`
-
-### 4. ESLint Errors
-**Problema**: `@typescript-eslint/no-explicit-any`
-**Solución**: Tipado explícito para todas las queries y responses
-
-## 🚀 Despliegue
-
-### Configuración Vercel
-- **Framework**: Next.js (auto-detectado)
-- **Node Version**: 20.x (por engines en package.json)
-- **Build Command**: `npm run build`
-- **Install Command**: `npm install`
-
-### Variables de Entorno Requeridas
-```env
-POSTGRES_HOST=mainbd.automatizacionesia.com
-POSTGRES_PORT=5432
-POSTGRES_DATABASE=postgres
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=R81N0ds7Cr8b
-```
-
-### Comandos de Desarrollo
-```bash
-npm run dev          # Desarrollo local
-npm run build        # Build de producción
-npm run start        # Servidor de producción
-npm run lint         # ESLint
-```
-
-## 📝 Convenciones de Código
-
-### Naming
-- Componentes: PascalCase
-- Variables: camelCase
-- Archivos: kebab-case para páginas, PascalCase para componentes
-- CSS Classes: Tailwind utilities
-
-### TypeScript
-- Strict mode habilitado
-- Interfaces para todos los tipos de datos
-- No usar `any` (usar `unknown` si es necesario)
-- Props tipadas para todos los componentes
-
-### Git
-- Commits descriptivos con prefijos: `feat:`, `fix:`, `refactor:`, `chore:`
-- Branch principal: `main`
-- Deploy automático desde `main` a Vercel
-
-## 🔧 Extensibilidad
-
-### Agregar Nuevos KPIs
-1. Modificar query en `/api/dashboard/route.ts`
-2. Actualizar tipos TypeScript en `page.tsx`
-3. Agregar Card con fórmula correspondiente
-4. Usar colores y estilos consistentes
-
-### Nuevas Visualizaciones
-1. Instalar dependencias si es necesario
-2. Importar componentes de Recharts
-3. Mantener tema oscuro y colores de acento
-4. Responsive design obligatorio
-
-### Filtros Adicionales
-1. Agregar estado local para el filtro
-2. Modificar query key de React Query
-3. Actualizar API endpoint si es necesario
-4. UI consistente con selector de fechas existente
-
-## ⚠️ Reglas Críticas para IA
-
-1. **NUNCA modificar la estructura de la base de datos** sin consultar
-2. **SIEMPRE usar TypeScript estricto** - no usar `any`
-3. **MANTENER el tema oscuro futurista** - no cambiar colores principales
-4. **VALIDAR todas las fórmulas matemáticas** antes de implementar
-5. **TESTEAR hidratación** después de modificar componentes de fecha
-6. **USAR valores por defecto** para evitar crashes con datos null/undefined
-7. **MANTENER responsive design** en todos los cambios
-8. **SEGUIR convenciones de naming** establecidas
-9. **NO eliminar configuraciones de SSL** de la base de datos
-10. **VERIFICAR ESLint** antes de hacer push
-
-## 📞 Datos de Conexión
-
-### Base de Datos PostgreSQL
-- **Host**: mainbd.automatizacionesia.com
-- **Puerto**: 5432
-- **Base**: postgres
-- **Usuario**: postgres
-- **SSL**: Requerido (rejectUnauthorized: false)
-
-### Repositorio
-- **GitHub**: https://github.com/lcqv/trackertest.git
-- **Branch**: main
-- **Vercel**: Auto-deploy habilitado
+1. Arquitectura y stack
+2. Estructura de archivos relevante
+3. Variables de entorno (`.env.local` y `.env.example`)
+4. Conexión a base de datos (`src/lib/db.ts`)
+5. API de datos (`src/app/api/dashboard/route.ts`)
+   - 5.1 kpiQuery
+   - 5.2 seriesQuery
+   - 5.3 closerQuery
+   - 5.4 eventsQuery
+   - 5.5 pendientesQuery
+   - 5.6 adsKpisQuery
+   - 5.7 callsKpisQuery
+   - 5.8 adsByOriginQuery
+   - 5.9 Contrato de respuesta
+6. Frontend (`src/app/page.tsx`): KPIs, tablas, leaderboard, exportación a Excel
+7. Reglas de fechas y normalización de strings
+8. Despliegue en Vercel (`DEPLOY.md`)
+9. Pruebas manuales y verificación
 
 ---
 
-*Última actualización: Diciembre 2024*
-*Versión del proyecto: 2.1.0*
-*Stack: Next.js 15.5.3 + TypeScript + PostgreSQL*
-*Mejoras: Resumen por métodos con matching por email, lógica temporal precisa, manejo de datos vacíos*
+## 1) Arquitectura y stack
+
+- Framework: Next.js 15 (App Router)
+- Lenguaje: TypeScript (estricto)
+- Estado de servidor: React Query v5
+- Base de datos: PostgreSQL
+- Estilos: Tailwind CSS + shadcn/ui
+- Fechas: date-fns
+- Exportación: xlsx
+
+El dashboard es una SPA que consume un único endpoint `/api/dashboard` con filtros de fecha, id de cuenta y zona horaria.
+
+## 2) Estructura de archivos relevante
+
+```
+src/
+  app/
+    api/dashboard/route.ts     # Endpoint principal con todas las consultas
+    eventos/[id]/route.ts      # Endpoint auxiliar (ver código si se usa)
+    layout.tsx                 # Providers (React Query)
+    page.tsx                   # UI principal del dashboard
+    providers.tsx              # Configuración React Query
+  components/ui/               # shadcn/ui adaptados al tema
+  lib/db.ts                    # Pool de PostgreSQL (pg)
+  types/xlsx-mjs.d.ts          # Declaración de tipos para xlsx si se requiere
+DEPLOY.md                      # Guía de despliegue
+CONTEXTO-IA.md                 # Este documento
+```
+
+## 3) Variables de entorno
+
+Archivo de ejemplo (se sube a git): `.env.example`
+
+```env
+# Base de datos (server-side)
+POSTGRES_HOST=your-db-hostname
+POSTGRES_PORT=5432
+POSTGRES_DATABASE=your-db-name
+POSTGRES_USER=your-db-user
+POSTGRES_PASSWORD=your-secure-password
+
+# Configuración cliente (client-side)
+NEXT_PUBLIC_CLIENT_ID=2
+NEXT_PUBLIC_CLIENT_TIMEZONE=America/Bogota
+NEXT_PUBLIC_CLIENT_NAME=Cliente Demo
+```
+
+Archivo local (no se sube): `.env.local` con los mismos nombres y valores reales.
+
+Notas:
+- Nunca commitear `.env.local`.
+- Todas las comparaciones de strings en SQL se hacen con `LOWER(TRIM(COALESCE(col, '')))`. Procura que los valores de entorno que impactan filtros se mantengan consistentes.
+
+## 4) Conexión a base de datos (`src/lib/db.ts`)
+
+- Usa `pg.Pool` con SSL (`rejectUnauthorized: false`).
+- Valida presencia de `POSTGRES_HOST`, `POSTGRES_DATABASE`, `POSTGRES_USER`, `POSTGRES_PASSWORD` al inicializar.
+- El puerto se lee de `POSTGRES_PORT` (default 5432).
+
+## 5) API de datos (`src/app/api/dashboard/route.ts`)
+
+Endpoint GET `/api/dashboard` con parámetros:
+- `fecha_inicio` (string ISO)
+- `fecha_fin` (string ISO)
+- `id_cuenta` (int; default 2 si no se envía)
+- `tz` (zona horaria; default `America/Bogota`)
+
+Todas las consultas aplican la zona horaria con `AT TIME ZONE $4` cuando corresponde a timestamps y convierten a `::date` para filtrar por rango.
+
+### 5.1 kpiQuery (CTEs principales)
+
+- `eventos_llamadas`: desde `eventos_llamadas_tiempo_real` (fuente verdad para shows/calificadas/cierres). Calcula:
+  - `total_llamadas_tomadas` (conteo total de eventos)
+  - `reuniones_calificadas` (categoria IN 'ofertada','cerrada')
+  - `llamadas_cerradas` (categoria = 'cerrada')
+  - `cash_collected_total`, `facturacion_total`
+- `datos_publicidad`: desde `resumenes_diarios_ads` (suma de gasto, impresiones, promedios de CTR, VSL).
+- `datos_agendas`: desde `resumenes_diarios_agendas` (fecha de agendamiento):
+  - `reuniones_agendadas`, `agendas_canceladas`, `agendas_pdte`, `no_show_count`
+  - `agendas_calificadas` (Ofertada/Cerrada)
+  - `agendas_validas` (NOT IN 'pdte','cancelada')
+  - `agendas_asistidas` (NOT IN 'pdte','cancelada','no_show')
+
+Selección final expone, entre otros:
+- `total_gasto_ads`, `impresiones`, `ctr`, `vsl_play_rate`, `vsl_engagement`
+- `reuniones_agendadas`, `llamadas_canceladas`, `llamadas_pendientes`, `no_show_agendas`
+- `agendas_efectivas`, `llamadas_tomadas_agendas`
+- `reuniones_calificadas` (de agendas)
+- `total_llamadas_tomadas`, `total_cierres`, `total_facturacion`, `cash_collected` (de eventos)
+- KPIs calculados: `ticket_promedio`, `cac`, `costo_por_agenda_calificada`, `costo_por_show`, `roas`, `roas_cash_collected`, `no_show` (GREATEST(agendadas - tomadas_eventos, 0))
+
+Importante: en tarjetas del frontend, los totales de asistidas/calificadas/cerradas se alinean con eventos (suma por closer), y el denominador del show rate usa `agendas_efectivas`.
+
+### 5.2 seriesQuery
+
+Serie temporal por día uniendo `resumenes_diarios_llamadas` con `resumenes_diarios_ads` (facturación, gasto, tomadas, cierres).
+
+### 5.3 closerQuery
+
+- `closers_eventos`: agrega por `closer` desde eventos (tomadas, cierres, facturación, cash_collected, reuniones_calificadas, shows).
+- `closers_no_show`: agrega `no_show` desde agendas para incluir closers sin eventos. Se hace `FULL OUTER JOIN` para no perder ninguno.
+
+### 5.4 eventsQuery
+
+Une:
+- `eventos_atendidos`: eventos reales (id_evento::text, fecha con TZ, link_llamada, tipo_registro='evento').
+- `eventos_no_show`: provenientes de agendas (prefijo 'NS-...', resume/link NULL::text, tipo_registro='no_show').
+
+### 5.5 pendientesQuery
+
+Lista de `PDTE` con fechas ajustadas a TZ e incluye `fecha_de_la_reunion`.
+
+### 5.6 adsKpisQuery / 5.7 callsKpisQuery
+
+- `adsKpisQuery`: suma spend/impresiones/clicks; CTR% calculado; play_rate/engagement promedio; `reuniones_agendadas` vía conteo en agendas.
+- `callsKpisQuery`: totales desde `resumenes_diarios_llamadas` (heredado para compatibilidad).
+
+### 5.8 adsByOriginQuery
+
+Base de creativos:
+- `creativos_periodo`: creativos activos en el rango desde `resumenes_diarios_creativos`.
+- `creativos_base`: GASTO HISTÓRICO total por creativo (sin filtro de fecha) para usar como `spend_allocated`.
+- `creativos_solo_agendas`/`creativos_solo_eventos`: creativos que aparecen solo en agendas/eventos y no están en `creativos_periodo`.
+- `todos_creativos`: unión de las tres fuentes anteriores.
+
+Métricas por creativo:
+- `agendas_creativo`: conteo de agendas por `origen` (mapeando NULL/'' a 'organico').
+- `pendientes_creativo`: conteo de `PDTE` por `origen`.
+- `resultados_creativo`: desde eventos, calcula `tomadas`, `calificadas`, `shows` (conteo total), `cierres`, `facturacion`, `cash_collected`.
+
+Selección final expone: `agendas`, `tomadas`, `calificadas`, `shows`, `cierres`, `facturacion`, `cash_collected`, `spend_allocated`, `llamadas_pendientes` y tasas:
+- `show_rate_pct = (tomadas / agendas) * 100`
+- `close_rate_pct = (cierres / agendas) * 100`
+
+Orden por defecto: `cierres DESC, facturacion DESC` (el frontend reordena para su vista).
+
+### 5.9 Contrato de respuesta
+
+El JSON devuelto incluye: `kpis`, `series`, `closers`, `events`, `adsKpis`, `callsKpis`, `adsByOrigin`, `hoy`, `pendientes`. Los campos numéricos se parsean a `number` en el mapeo antes de responder.
+
+## 6) Frontend (`src/app/page.tsx`)
+
+- Carga datos con React Query usando la key: `["dashboard", `id:${NEXT_PUBLIC_CLIENT_ID}`, `tz:${NEXT_PUBLIC_CLIENT_TIMEZONE}`, startDateISO, endDateISO]`.
+- Formatea fechas de `series` a `yyyy-MM-dd` con `date-fns/format`.
+- Totales globales alineados al Leaderboard:
+  - `totalShowsEventos = sum(closers[].shows)`
+  - `totalCalificadasEventos = sum(closers[].reuniones_calificadas)`
+  - `totalCierresEventos = sum(closers[].cierres)`
+  - Se usan `Number(...)` en los reduce para evitar concatenación de strings.
+
+Tarjetas destacadas:
+- Reuniones asistidas (show rate): numerador = `totalShowsEventos`; denominador = `kpis.agendas_efectivas`.
+- Reuniones calificadas: `totalCalificadasEventos`.
+- Llamadas cerradas (close rate): `totalCierresEventos / totalCalificadasEventos`.
+- % Calificación: `totalCalificadasEventos / totalShowsEventos`.
+- Llamadas pendientes (PDTE): `kpis.llamadas_pendientes`.
+- Llamadas canceladas: `kpis.llamadas_canceladas`.
+
+Resumen por Métodos de Adquisición:
+- Muestra `agendas`, `tomadas`, `calificadas`, `cierres`, `facturacion`, `cash_collected`, `spend_allocated`, `llamadas_pendientes`, `show_rate_pct`, `close_rate_pct`.
+- Orden en UI: (1) `cash_collected` DESC, (2) `agendas` DESC, (3) `spend_allocated` DESC, (4) `anuncio_origen` A→Z.
+- Nulos o vacíos en `origen` se agrupan como `organico`.
+
+Exportación a Excel:
+- Import estático `import * as XLSX from "xlsx"`.
+- Se generan hojas: KPIs, Ads_KPIs, Calls_KPIs, Hoy, Series, Closers, Eventos, Ads_por_Origen, Pendientes_PDTE.
+- `resumen_ia` se trunca a ~32,000 caracteres para evitar el límite de celdas en Excel (~32,767).
+
+## 7) Reglas de fechas y normalización de strings
+
+- TZ: el backend recibe `tz` y aplica `AT TIME ZONE $4` en timestamps. Los filtros por día usan `::date` ya ajustado a la TZ del cliente.
+- Comparaciones de strings: siempre `LOWER(TRIM(COALESCE(col, '')))`. Esto evita problemas de mayúsculas, espacios y nulos.
+
+## 8) Despliegue en Vercel
+
+Ver `DEPLOY.md`. Puntos clave:
+- Node 20.x (por `engines`), Next 15.5.x.
+- Configurar TODAS las variables del `.env.local` en Project Settings → Environment Variables (Production/Preview/Development).
+- Nunca exponer secretos en el repo.
+
+## 9) Pruebas manuales y verificación
+
+Checklist rápido tras cambios:
+- Filtrado por fechas respeta la zona horaria del cliente.
+- Show rate ≤ 100% cuando numerador/denominador están en la misma dimensión temporal.
+- Leaderboard y tarjetas usan las mismas fuentes (eventos) para asistidas/calificadas/cerradas.
+- En Ads por Origen, creativos sin matching en creativos_base siguen apareciendo y `spend_allocated` viene del histórico.
+- Exportación Excel funciona y no supera límites de texto.
+
+---
+
+Última revisión: generar este archivo automáticamente al cambiar contratos del endpoint o los KPIs.
+
+ 
