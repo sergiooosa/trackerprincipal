@@ -22,6 +22,7 @@ Este documento describe el proyecto de forma integral: arquitectura, entorno, co
 7. Reglas de fechas y normalización de strings
 8. Despliegue en Vercel (`DEPLOY.md`)
 9. Pruebas manuales y verificación
+10. Cambios recientes
 
 ---
 
@@ -218,4 +219,18 @@ Checklist rápido tras cambios:
 
 Última revisión: generar este archivo automáticamente al cambiar contratos del endpoint o los KPIs.
 
- 
+## 10) Cambios recientes
+
+Fecha: 2025-11-24
+
+- Resumen por Métodos de Adquisición (UI):
+  - Se agregó un buscador de creativos en el encabezado de la sección.
+  - Filtra exclusivamente por `anuncio_origen` (case-insensitive) y aplica el filtro antes del ordenamiento.
+  - Implementación: estado `creativoFilter` y `<Input>` en `src/app/page.tsx`.
+- Branding del cliente:
+  - Se usa `NEXT_PUBLIC_CLIENT_NAME` para mostrar el nombre en la parte superior izquierda (barra global) y en `metadata.title`.
+  - Implementación en `src/app/layout.tsx`.
+- Llamadas pendientes:
+  - La sección se ubica al final del dashboard con un diseño mejorado (tabla con: fecha de agendamiento, lead, fecha de la reunión, email, closer, estado).
+  - Origen de datos: `pendientesQuery` en backend; se muestra el total en el encabezado de la card.
+
