@@ -150,6 +150,7 @@ export default function Home() {
   const [startDate, setStartDate] = useState<Date>(defaultStart);
   const [endDate, setEndDate] = useState<Date>(defaultEnd);
   const [closerFilter, setCloserFilter] = useState<Record<string, string>>({});
+  const [creativoFilter, setCreativoFilter] = useState<string>("");
 
   // Configuración del cliente desde variables de entorno
   const clientId = process.env.NEXT_PUBLIC_CLIENT_ID || "2";
@@ -501,6 +502,14 @@ export default function Home() {
             <div className="mb-6">
               <h3 className="text-2xl font-bold text-white font-sans tracking-wide">Resumen por Métodos de Adquisición</h3>
               <p className="text-neutral-300/80 text-sm mt-1">Métricas de rendimiento por fuente de tráfico</p>
+              <div className="mt-4">
+                <Input
+                  placeholder="Buscar creativo..."
+                  className="bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm placeholder:text-white"
+                  value={creativoFilter}
+                  onChange={(ev) => setCreativoFilter(ev.target.value)}
+                />
+              </div>
             </div>
             
             <div className="overflow-x-auto">
@@ -526,6 +535,11 @@ export default function Home() {
 
                 {/* Rows: Direct creatives */}
                 {(data?.adsByOrigin ?? [])
+                  .filter((row) => {
+                    const q = creativoFilter.toLowerCase().trim();
+                    if (!q) return true;
+                    return (row.anuncio_origen ?? "").toLowerCase().includes(q);
+                  })
                   .sort((a, b) => {
                     // Prioridad 1: Los que más cash collected generaron (descendente)
                     const cashA = a.cash_collected || 0;
