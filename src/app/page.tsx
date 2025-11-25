@@ -155,6 +155,7 @@ export default function Home() {
   // Configuración del cliente desde variables de entorno
   const clientId = process.env.NEXT_PUBLIC_CLIENT_ID || "2";
   const timezone = process.env.NEXT_PUBLIC_CLIENT_TIMEZONE || "America/Bogota";
+  const clientName = process.env.NEXT_PUBLIC_CLIENT_NAME || "AutoKpi";
 
   const { data, isLoading, isError, isFetching, error } = useQuery<ApiResponse>({
     queryKey: ["dashboard", `id:${clientId}`, `tz:${timezone}`, startDate?.toISOString(), endDate?.toISOString()],
@@ -207,7 +208,7 @@ export default function Home() {
   return (
     <div className="min-h-screen w-full bg-neutral-950 text-neutral-100 px-6 sm:px-8 py-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">AutoKpi - Traking Automático</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">{clientName} - Traking Automático</h1>
         <div className="flex items-center gap-3">
           <Select
             onValueChange={(v) => {
@@ -837,10 +838,8 @@ export default function Home() {
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <div className="min-w-[720px]">
-                  <div className="grid grid-cols-6 gap-3 p-4 text-xs uppercase tracking-wider text-neutral-300 bg-neutral-900/60">
-                    <div>Fecha de agendamiento</div>
+                  <div className="grid grid-cols-4 gap-3 p-4 text-xs uppercase tracking-wider text-neutral-300 bg-neutral-900/60">
                     <div>Lead</div>
-                    <div>Fecha de la reunión</div>
                     <div>Email</div>
                     <div>Closer</div>
                     <div className="text-right pr-2">Estado</div>
@@ -848,13 +847,9 @@ export default function Home() {
                   {(dataset?.pendientes ?? []).map((p, idx) => (
                     <div
                       key={p.id_registro_agenda}
-                      className={`grid grid-cols-6 gap-3 items-center px-4 py-3 border-t border-neutral-800 ${idx % 2 === 0 ? "bg-neutral-900/30" : "bg-transparent"}`}
+                      className={`grid grid-cols-4 gap-3 items-center px-4 py-3 border-t border-neutral-800 ${idx % 2 === 0 ? "bg-neutral-900/30" : "bg-transparent"}`}
                     >
-                      <div className="text-white text-sm">{new Date(p.fecha).toLocaleDateString()}</div>
                       <div className="text-white text-sm font-medium">{p.nombre_de_lead}</div>
-                      <div className="text-neutral-300 text-sm">
-                        {p.fecha_de_la_reunion ? new Date(p.fecha_de_la_reunion).toLocaleDateString() : "—"}
-                      </div>
                       <div className="text-neutral-300 text-sm truncate">{p.email_lead}</div>
                       <div className="text-neutral-300 text-sm">{p.closer}</div>
                       <div className="flex justify-end pr-2">

@@ -228,9 +228,11 @@ Fecha: 2025-11-24
   - Filtra exclusivamente por `anuncio_origen` (case-insensitive) y aplica el filtro antes del ordenamiento.
   - Implementación: estado `creativoFilter` y `<Input>` en `src/app/page.tsx`.
 - Branding del cliente:
-  - Se usa `NEXT_PUBLIC_CLIENT_NAME` para mostrar el nombre en la parte superior izquierda (barra global) y en `metadata.title`.
-  - Implementación en `src/app/layout.tsx`.
+  - Se usa `NEXT_PUBLIC_CLIENT_NAME` para:
+    - Barra superior (layout global) y `metadata.title` (`src/app/layout.tsx`).
+    - Encabezado principal de la página: `<h1>{clientName} - Traking Automático</h1>` (`src/app/page.tsx`).
 - Llamadas pendientes:
   - La sección se ubica al final del dashboard con un diseño mejorado (tabla con: fecha de agendamiento, lead, fecha de la reunión, email, closer, estado).
   - Origen de datos: `pendientesQuery` en backend; se muestra el total en el encabezado de la card.
+  - Cambio reciente: se removieron las columnas “Fecha de agendamiento” y “Fecha de la reunión” en la tabla, manteniendo: Lead, Email, Closer, Estado.
 
