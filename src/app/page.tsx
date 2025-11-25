@@ -202,6 +202,7 @@ type ApiResponse = {
     fecha_hora_evento: string;
     closer: string;
     cliente?: string | null;
+    email_lead?: string | null;
     categoria?: string | null;
     cash_collected?: number | null;
     facturacion: number;
@@ -983,96 +984,98 @@ export default function Home() {
                                   <TableCell className="text-white">{currency(e.cash_collected ?? 0)}</TableCell>
                                   <TableCell className="text-white">{currency(e.facturacion ?? 0)}</TableCell>
                                   <TableCell className="text-white space-x-2">
-                                    <Dialog>
-                                      <DialogTrigger asChild>
-                                        <Button disabled={esNoShow} variant="outline" className="bg-neutral-900 border-neutral-800 text-neutral-200 hover:border-cyan-400/40 hover:text-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed">Ver notas</Button>
-                                      </DialogTrigger>
-                                      <DialogContent className="sm:max-w-[800px] max-h-[90vh] bg-neutral-950 border-neutral-800 text-neutral-100 mx-4">
-                                        <DialogHeader>
-                                          <DialogTitle className="flex items-center justify-between">
-                                            <span>Detalle de la llamada</span>
-                                            {e.link_llamada && (
-                                              <Button
-                                                variant="outline"
-                                                className="bg-cyan-500/10 border-cyan-400/40 text-cyan-300 hover:bg-cyan-500/20"
-                                                onClick={() => window.open(e.link_llamada || '', '_blank')}
-                                              >
-                                                🔗 Ver grabación
-                                              </Button>
-                                            )}
-                                          </DialogTitle>
-                                        </DialogHeader>
-                                        <div className="space-y-4 max-h-[70vh] overflow-y-auto">
-                                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                            <div className="text-sm"><span className="text-neutral-400">Lead:</span> {e.cliente ?? '—'}</div>
-                                            <div className="text-sm"><span className="text-neutral-400">Closer:</span> {e.closer}</div>
-                                            <div className="text-sm"><span className="text-neutral-400">Fecha:</span> {new Date(e.fecha_hora_evento).toLocaleString()}</div>
-                                          </div>
-                                          <div>
-                                            <div className="text-sm mb-2"><span className="text-neutral-400">Resumen:</span></div>
-                                            <div className="text-neutral-200 whitespace-pre-wrap max-h-[50vh] overflow-auto rounded-md border border-neutral-800 p-3">{e.resumen_ia ?? 'Sin resumen'}</div>
-                                          </div>
-                                        </div>
-                                      </DialogContent>
-                                    </Dialog>
-
-                                    <Dialog>
-                                      <DialogTrigger asChild>
-                                        <Button disabled={esNoShow} variant="outline" className="bg-neutral-900 border-neutral-800 text-neutral-200 hover:border-emerald-400/40 hover:text-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed">Configurar</Button>
-                                      </DialogTrigger>
-                                      <DialogContent className="sm:max-w-[560px] bg-neutral-950 border-neutral-800 text-neutral-100 mx-4">
-                                        <DialogHeader>
-                                          <DialogTitle>Configurar llamada</DialogTitle>
-                                        </DialogHeader>
-                                        <form
-                                          className="space-y-4"
-                                          onSubmit={async (ev) => {
-                                            ev.preventDefault();
-                                            const form = ev.currentTarget as HTMLFormElement;
-                                            const formData = new FormData(form);
-                                            const payload = {
-                                              categoria: String(formData.get('categoria') || '').toLowerCase(),
-                                              cash_collected: formData.get('cash_collected') ? Number(formData.get('cash_collected')) : null,
-                                              facturacion: formData.get('facturacion') ? Number(formData.get('facturacion')) : null,
-                                            };
-                                            await fetch(`/api/eventos/${e.id_evento}`, {
-                                              method: 'PATCH',
-                                              headers: { 'Content-Type': 'application/json' },
-                                              body: JSON.stringify(payload),
-                                            });
-                                            // Refrescar dashboard
-                                            queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-                                            (document.activeElement as HTMLElement)?.click();
-                                          }}
-                                        >
-                                          <div>
-                                            <label className="text-sm text-neutral-300">Categoría</label>
-                                            <select
-                                              name="categoria"
-                                              defaultValue={(e.categoria ?? '').toLowerCase() || 'no ofertada'}
-                                              className="w-full mt-1 bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm"
+                                    {!esNoShow && (
+                                      <>
+                                        <Dialog>
+                                          <DialogTrigger asChild>
+                                            <Button variant="outline" className="bg-neutral-900 border-neutral-800 text-neutral-200 hover:border-cyan-400/40 hover:text-cyan-300">Ver notas</Button>
+                                          </DialogTrigger>
+                                          <DialogContent className="sm:max-w-[800px] max-h-[90vh] bg-neutral-950 border-neutral-800 text-neutral-100 mx-4">
+                                            <DialogHeader>
+                                              <DialogTitle className="flex items-center justify-between">
+                                                <span>Detalle de la llamada</span>
+                                                {e.link_llamada && (
+                                                  <Button
+                                                    variant="outline"
+                                                    className="bg-cyan-500/10 border-cyan-400/40 text-cyan-300 hover:bg-cyan-500/20"
+                                                    onClick={() => window.open(e.link_llamada || '', '_blank')}
+                                                  >
+                                                    🔗 Ver grabación
+                                                  </Button>
+                                                )}
+                                              </DialogTitle>
+                                            </DialogHeader>
+                                            <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+                                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                <div className="text-sm"><span className="text-neutral-400">Lead:</span> {e.cliente ?? '—'}</div>
+                                                <div className="text-sm"><span className="text-neutral-400">Closer:</span> {e.closer}</div>
+                                                <div className="text-sm"><span className="text-neutral-400">Fecha:</span> {new Date(e.fecha_hora_evento).toLocaleString()}</div>
+                                              </div>
+                                              <div>
+                                                <div className="text-sm mb-2"><span className="text-neutral-400">Resumen:</span></div>
+                                                <div className="text-neutral-200 whitespace-pre-wrap max-h-[50vh] overflow-auto rounded-md border border-neutral-800 p-3">{e.resumen_ia ?? 'Sin resumen'}</div>
+                                              </div>
+                                            </div>
+                                          </DialogContent>
+                                        </Dialog>
+                                        <Dialog>
+                                          <DialogTrigger asChild>
+                                            <Button variant="outline" className="bg-neutral-900 border-neutral-800 text-neutral-200 hover:border-emerald-400/40 hover:text-emerald-300">Configurar</Button>
+                                          </DialogTrigger>
+                                          <DialogContent className="sm:max-w-[560px] bg-neutral-950 border-neutral-800 text-neutral-100 mx-4">
+                                            <DialogHeader>
+                                              <DialogTitle>Configurar llamada</DialogTitle>
+                                            </DialogHeader>
+                                            <form
+                                              className="space-y-4"
+                                              onSubmit={async (ev) => {
+                                                ev.preventDefault();
+                                                const form = ev.currentTarget as HTMLFormElement;
+                                                const formData = new FormData(form);
+                                                const payload = {
+                                                  categoria: String(formData.get('categoria') || '').toLowerCase(),
+                                                  cash_collected: formData.get('cash_collected') ? Number(formData.get('cash_collected')) : null,
+                                                  facturacion: formData.get('facturacion') ? Number(formData.get('facturacion')) : null,
+                                                };
+                                                await fetch(`/api/eventos/${e.id_evento}`, {
+                                                  method: 'PATCH',
+                                                  headers: { 'Content-Type': 'application/json' },
+                                                  body: JSON.stringify(payload),
+                                                });
+                                                queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+                                                (document.activeElement as HTMLElement)?.click();
+                                              }}
                                             >
-                                              <option value="no ofertada">No ofertada</option>
-                                              <option value="ofertada">Ofertada</option>
-                                              <option value="cerrada">Cerrada</option>
-                                            </select>
-                                          </div>
-                                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <div>
-                                              <label className="text-sm text-neutral-300">Cash collected</label>
-                                              <Input name="cash_collected" type="number" step="0.01" defaultValue={e.cash_collected ?? 0} className="mt-1" />
-                                            </div>
-                                            <div>
-                                              <label className="text-sm text-neutral-300">Facturación</label>
-                                              <Input name="facturacion" type="number" step="0.01" defaultValue={e.facturacion ?? 0} className="mt-1" />
-                                            </div>
-                                          </div>
-                                          <div className="flex justify-end gap-2 pt-2">
-                                            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-500">Guardar</Button>
-                                          </div>
-                                        </form>
-                                      </DialogContent>
-                                    </Dialog>
+                                              <div>
+                                                <label className="text-sm text-neutral-300">Categoría</label>
+                                                <select
+                                                  name="categoria"
+                                                  defaultValue={(e.categoria ?? '').toLowerCase() || 'no ofertada'}
+                                                  className="w-full mt-1 bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm"
+                                                >
+                                                  <option value="no ofertada">No ofertada</option>
+                                                  <option value="ofertada">Ofertada</option>
+                                                  <option value="cerrada">Cerrada</option>
+                                                </select>
+                                              </div>
+                                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <div>
+                                                  <label className="text-sm text-neutral-300">Cash collected</label>
+                                                  <Input name="cash_collected" type="number" step="0.01" defaultValue={e.cash_collected ?? 0} className="mt-1" />
+                                                </div>
+                                                <div>
+                                                  <label className="text-sm text-neutral-300">Facturación</label>
+                                                  <Input name="facturacion" type="number" step="0.01" defaultValue={e.facturacion ?? 0} className="mt-1" />
+                                                </div>
+                                              </div>
+                                              <div className="flex justify-end gap-2 pt-2">
+                                                <Button type="submit" className="bg-emerald-600 hover:bg-emerald-500">Guardar</Button>
+                                              </div>
+                                            </form>
+                                          </DialogContent>
+                                        </Dialog>
+                                      </>
+                                    )}
                                     {esNoShow && (
                                       <Dialog>
                                         <DialogTrigger asChild>
@@ -1094,38 +1097,40 @@ export default function Home() {
                                         </DialogContent>
                                       </Dialog>
                                     )}
-                                    <Dialog>
-                                      <DialogTrigger asChild>
-                                        <Button disabled={esNoShow} variant="outline" className="bg-neutral-900 border-neutral-800 text-neutral-200 hover:border-red-400/40 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed">Borrar llamada</Button>
-                                      </DialogTrigger>
-                                      <DialogContent className="sm:max-w-[520px] bg-neutral-950 border-neutral-800 text-neutral-100 mx-4">
-                                        <DialogHeader>
-                                          <DialogTitle>Confirmar eliminación</DialogTitle>
-                                        </DialogHeader>
-                                        <div className="space-y-4">
-                                          <p className="text-sm text-neutral-300">
-                                            ¿Estás seguro que quieres eliminar la llamada con nombre de lead: <span className="font-semibold">{e.cliente ?? "—"}</span>?
-                                          </p>
-                                          <div className="flex justify-end gap-2">
-                                            <Button
-                                              className="bg-red-600 hover:bg-red-500"
-                                              onClick={async () => {
-                                              const resp = await fetch(`/api/eventos/${e.id_evento}?id_cuenta=${clientId}`, { method: "DELETE" });
-                                              if (!resp.ok && resp.status !== 204 && resp.status !== 404) {
-                                                  const j = await resp.json().catch(() => ({}));
-                                                  alert(`No se pudo eliminar: ${j?.error || resp.statusText}`);
-                                                  return;
-                                                }
-                                                queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-                                                (document.activeElement as HTMLElement | null)?.click();
-                                              }}
-                                            >
-                                              Confirmar
-                                            </Button>
+                                    {!esNoShow && (
+                                      <Dialog>
+                                        <DialogTrigger asChild>
+                                          <Button variant="outline" className="bg-neutral-900 border-neutral-800 text-neutral-200 hover:border-red-400/40 hover:text-red-300">Borrar llamada</Button>
+                                        </DialogTrigger>
+                                        <DialogContent className="sm:max-w-[520px] bg-neutral-950 border-neutral-800 text-neutral-100 mx-4">
+                                          <DialogHeader>
+                                            <DialogTitle>Confirmar eliminación</DialogTitle>
+                                          </DialogHeader>
+                                          <div className="space-y-4">
+                                            <p className="text-sm text-neutral-300">
+                                              ¿Estás seguro que quieres eliminar la llamada con nombre de lead: <span className="font-semibold">{e.cliente ?? "—"}</span>?
+                                            </p>
+                                            <div className="flex justify-end gap-2">
+                                              <Button
+                                                className="bg-red-600 hover:bg-red-500"
+                                                onClick={async () => {
+                                                  const resp = await fetch(`/api/eventos/${e.id_evento}?id_cuenta=${clientId}`, { method: "DELETE" });
+                                                  if (!resp.ok && resp.status !== 204) {
+                                                    const j = await resp.json().catch(() => ({}));
+                                                    alert(`No se pudo eliminar: ${j?.error || resp.statusText}`);
+                                                    return;
+                                                  }
+                                                  queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+                                                  (document.activeElement as HTMLElement | null)?.click();
+                                                }}
+                                              >
+                                                Confirmar
+                                              </Button>
+                                            </div>
                                           </div>
-                                        </div>
-                                      </DialogContent>
-                                    </Dialog>
+                                        </DialogContent>
+                                      </Dialog>
+                                    )}
                                   </TableCell>
                                 </TableRow>
                               );

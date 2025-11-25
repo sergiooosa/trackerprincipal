@@ -168,17 +168,17 @@ export async function GET(req: NextRequest) {
 
     const closerQuery = `
       WITH closers_eventos AS (
-        SELECT
-          closer,
-          COUNT(*) AS llamadas_tomadas,
-          COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada') AS cierres,
-          SUM(facturacion) AS facturacion_generada,
-          SUM(cash_collected) AS cash_collected,
-          COUNT(*) FILTER (WHERE LOWER(categoria) IN ('ofertada', 'cerrada')) AS reuniones_calificadas,
+      SELECT
+        closer,
+        COUNT(*) AS llamadas_tomadas,
+        COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada') AS cierres,
+        SUM(facturacion) AS facturacion_generada,
+        SUM(cash_collected) AS cash_collected,
+        COUNT(*) FILTER (WHERE LOWER(categoria) IN ('ofertada', 'cerrada')) AS reuniones_calificadas,
           COUNT(*) AS shows
-        FROM eventos_llamadas_tiempo_real
-        WHERE id_cuenta = $1 AND (fecha_hora_evento AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date
-        GROUP BY closer
+      FROM eventos_llamadas_tiempo_real
+      WHERE id_cuenta = $1 AND (fecha_hora_evento AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date
+      GROUP BY closer
       ),
       closers_no_show AS (
         SELECT
@@ -211,19 +211,20 @@ export async function GET(req: NextRequest) {
 
     const eventsQuery = `
       WITH eventos_atendidos AS (
-        SELECT
+      SELECT
           id_evento::text AS id_evento,
           fecha_hora_evento AT TIME ZONE $4 AS fecha_hora_evento,
-          closer,
-          cliente,
+        closer,
+        cliente,
           LOWER(TRIM(categoria)) AS categoria,
-          cash_collected,
-          facturacion,
-          anuncio_origen,
+        cash_collected,
+        facturacion,
+        anuncio_origen,
+        email_lead,
           resumen_ia,
           link_llamada,
           'evento' AS tipo_registro
-        FROM eventos_llamadas_tiempo_real
+      FROM eventos_llamadas_tiempo_real
         WHERE id_cuenta = $1 
           AND (fecha_hora_evento AT TIME ZONE $4)::date BETWEEN $2::date AND $3::date
       ),
@@ -237,6 +238,7 @@ export async function GET(req: NextRequest) {
           0::numeric AS cash_collected,
           0::numeric AS facturacion,
           origen AS anuncio_origen,
+          email_lead,
           NULL::text AS resumen_ia,
           NULL::text AS link_llamada,
           'no_show' AS tipo_registro
@@ -393,15 +395,15 @@ export async function GET(req: NextRequest) {
           AND anuncio_origen IS NOT NULL
         GROUP BY LOWER(TRIM(anuncio_origen))
       )
-      SELECT
+        SELECT
         tc.creativo AS anuncio_origen,
-        COALESCE(ac.agendas, 0) AS agendas,
+          COALESCE(ac.agendas, 0) AS agendas,
         COALESCE(rc.tomadas, 0) AS tomadas,
         COALESCE(rc.calificadas, 0) AS calificadas,
-        COALESCE(rc.shows, 0) AS shows,
-        COALESCE(rc.cierres, 0) AS cierres,
-        COALESCE(rc.facturacion, 0) AS facturacion,
-        COALESCE(rc.cash_collected, 0) AS cash_collected,
+          COALESCE(rc.shows, 0) AS shows,
+          COALESCE(rc.cierres, 0) AS cierres,
+          COALESCE(rc.facturacion, 0) AS facturacion,
+          COALESCE(rc.cash_collected, 0) AS cash_collected,
         COALESCE(cb.gasto_total, 0) AS spend_allocated,
         COALESCE(pc.pendientes, 0) AS llamadas_pendientes,
         CASE 
