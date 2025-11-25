@@ -236,3 +236,17 @@ Fecha: 2025-11-24
   - Origen de datos: `pendientesQuery` en backend; se muestra el total en el encabezado de la card.
   - Cambio reciente: se removieron las columnas “Fecha de agendamiento” y “Fecha de la reunión” en la tabla, manteniendo: Lead, Email, Closer, Estado.
 
+Fecha: 2025-11-25
+
+- Crear/borrar llamadas desde UI:
+  - Nuevo botón “➕ Agregar llamada” en header (dialog con formulario obligatorio).
+  - Campos: lead, email, fecha/hora (en TZ del cliente), closer, correo closer, categoría (select), cash, facturación, anuncio_origen, nota_meta, link_llamada, transcripción.
+  - Al crear, se llama a `/api/eventos` (POST) y se refresca React Query.
+  - En Leaderboard, botón “Borrar llamada” con confirmación → DELETE `/api/eventos/:id?id_cuenta=...`.
+- API:
+  - `POST /api/eventos`: valida campos, convierte `fecha_evento_local` a Z en SQL: `($1::timestamp AT TIME ZONE $tz)`.
+  - IA (server): prioridad Gemini → OpenAI → vacío. Genera `resumen_ia`, `objeciones_ia` (JSON) y `reportmarketing`.
+  - `DELETE /api/eventos/:id`: exige `id_cuenta` y borra solo si coincide.
+- Entorno:
+  - Nuevas envs: `GEMINI_API_KEY`, `OPENAI_API_KEY` (ver DEPLOY.md). 
+

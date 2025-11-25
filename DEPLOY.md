@@ -28,6 +28,10 @@ Luego edita `.env.local` con los valores específicos del cliente.
 - `NEXT_PUBLIC_CLIENT_TIMEZONE`: Zona horaria del cliente (ej: America/Bogota, America/Mexico_City, America/New_York)
 - `NEXT_PUBLIC_CLIENT_NAME`: Nombre del cliente (opcional, para mostrar en UI)
 
+#### APIs de IA (Server-side, opcionales pero recomendadas)
+- `GEMINI_API_KEY`: Clave de Gemini (preferida para generación IA)
+- `OPENAI_API_KEY`: Clave de OpenAI (fallback si Gemini falla)
+
 ## 🚀 Pasos para Desplegar en Vercel
 
 ### 1. Preparar el código
@@ -66,6 +70,8 @@ git push -u origin main
    - `NEXT_PUBLIC_CLIENT_ID`
    - `NEXT_PUBLIC_CLIENT_TIMEZONE`
    - `NEXT_PUBLIC_CLIENT_NAME`
+   - `GEMINI_API_KEY`
+   - `OPENAI_API_KEY`
 5. Asegúrate de marcar las variables para **Production**, **Preview** y **Development**
 6. Click en "Deploy"
 

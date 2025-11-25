@@ -85,3 +85,41 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 }
 
 
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+  if (!id) {
+    return NextResponse.json({ error: "Falta id del evento" }, { status: 400 });
+  }
+  const { searchParams } = new URL(req.url);
+  const idCuentaStr = searchParams.get("id_cuenta");
+  if (!idCuentaStr) {
+    return NextResponse.json({ error: "Falta id_cuenta" }, { status: 400 });
+  }
+  const id_cuenta = parseInt(idCuentaStr, 10);
+  if (!Number.isInteger(id_cuenta)) {
+    return NextResponse.json({ error: "id_cuenta inválido" }, { status: 400 });
+  }
+
+  const sql = `
+    DELETE FROM eventos_llamadas_tiempo_real
+    WHERE id_evento = $1 AND id_cuenta = $2
+  `;
+  const client = await pool.connect();
+  try {
+    const res = await client.query(sql, [id, id_cuenta]);
+    if ((res as any).rowCount === 1 || (res as any).rowCount === undefined) {
+      // Algunos drivers no devuelven rowCount en DELETE simplificado
+      return new NextResponse(null, { status: 204 });
+    }
+    if (res.rowCount === 0) {
+      return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+    }
+    return new NextResponse(null, { status: 204 });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Error desconocido";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  } finally {
+    client.release();
+  }
+}
+
