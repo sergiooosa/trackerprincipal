@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
+import pool from "@/lib/db";
 import { generateResumenIA, extractObjecionesIA, generateReporteMarketing } from "@/lib/ai";
 
 const PROMPT_RESUMEN = `# ANALIZADOR FORENSE UNIVERSAL DE CONVERSACIONES
