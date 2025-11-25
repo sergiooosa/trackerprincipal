@@ -344,7 +344,7 @@ export default function Home() {
                     <Input name="anuncio_origen" required className="mt-1" placeholder="exacto y en minúsculas" />
                   </div>
                   <div>
-                    <label className="text-sm text-neutral-300">Nota (como en Meta, en minúscula o \"no\")</label>
+                    <label className="text-sm text-neutral-300">Nota (como en Meta, en minúscula o &quot;no&quot;)</label>
                     <Input name="nota_meta" required className="mt-1" />
                   </div>
                   <div className="sm:col-span-2">
@@ -352,7 +352,7 @@ export default function Home() {
                     <Input name="link_llamada" required className="mt-1" placeholder="pega el link o escribe algo si no tienes" />
                   </div>
                   <div className="sm:col-span-2">
-                    <div className="text-xs text-neutral-400 mb-1">Si no la tienes solo escribe "no"</div>
+                    <div className="text-xs text-neutral-400 mb-1">Si no la tienes solo escribe &quot;no&quot;</div>
                     <textarea name="transcripcion" required className="w-full h-40 bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm" />
                   </div>
                 </div>

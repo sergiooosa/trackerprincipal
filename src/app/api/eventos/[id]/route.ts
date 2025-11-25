@@ -107,11 +107,8 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const client = await pool.connect();
   try {
     const res = await client.query(sql, [id, id_cuenta]);
-    if ((res as any).rowCount === 1 || (res as any).rowCount === undefined) {
-      // Algunos drivers no devuelven rowCount en DELETE simplificado
-      return new NextResponse(null, { status: 204 });
-    }
-    if (res.rowCount === 0) {
+    const count = typeof res.rowCount === "number" ? res.rowCount : 0;
+    if (count === 0) {
       return NextResponse.json({ error: "No encontrado" }, { status: 404 });
     }
     return new NextResponse(null, { status: 204 });

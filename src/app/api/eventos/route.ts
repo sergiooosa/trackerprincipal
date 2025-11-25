@@ -61,7 +61,6 @@ export async function POST(req: Request) {
     const cash_collected = Number(body.cash_collected);
     const facturacion = Number(body.facturacion);
     const anuncio_origen = String(body.anuncio_origen ?? "").toLowerCase().trim() || "organico";
-    const nota_meta = String(body.nota_meta ?? "").toLowerCase().trim();
     const link_llamada = String(body.link_llamada ?? "").trim();
     const transcripcion = String(body.transcripcion ?? "").trim();
 
@@ -114,8 +113,9 @@ export async function POST(req: Request) {
     const result = await pool.query(insertSql, params);
     const id_evento = result.rows?.[0]?.id_evento;
     return NextResponse.json({ id_evento }, { status: 201 });
-  } catch (err: any) {
-    return NextResponse.json({ error: `Error creando evento: ${err?.message || "desconocido"}` }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "desconocido";
+    return NextResponse.json({ error: `Error creando evento: ${message}` }, { status: 500 });
   }
 }
 
