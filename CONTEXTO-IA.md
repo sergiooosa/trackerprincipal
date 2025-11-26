@@ -240,13 +240,15 @@ Fecha: 2025-11-25
 
 - Crear/borrar llamadas desde UI:
   - Nuevo botón “➕ Agregar llamada” en header (dialog con formulario obligatorio).
-  - Campos: lead, email, fecha/hora (en TZ del cliente), closer, correo closer, categoría (select), cash, facturación, anuncio_origen, nota_meta, link_llamada, transcripción.
+  - Campos: lead, email, fecha/hora (en TZ del cliente), closer, correo closer, categoría (select), cash, facturación, anuncio_origen (exactamente como en Meta, en minúscula o "no"), link_llamada, transcripción.
   - Al crear, se llama a `/api/eventos` (POST) y se refresca React Query.
   - En Leaderboard, botón “Borrar llamada” con confirmación → DELETE `/api/eventos/:id?id_cuenta=...`.
 - API:
-  - `POST /api/eventos`: valida campos, convierte `fecha_evento_local` a Z en SQL: `($1::timestamp AT TIME ZONE $tz)`.
+  - `POST /api/eventos`: valida campos (sin `nota_meta`), convierte `fecha_evento_local` a Z en SQL: `($1::timestamp AT TIME ZONE $tz)`.
   - IA (server): prioridad Gemini → OpenAI → vacío. Genera `resumen_ia`, `objeciones_ia` (JSON) y `reportmarketing`.
   - `DELETE /api/eventos/:id`: exige `id_cuenta` y borra solo si coincide.
+- Revivir no_show:
+  - `POST /api/eventos/revivir`: recibe `id_registro_agenda` y los mismos campos del formulario (sin `nota_meta`), actualiza `resumenes_diarios_agendas.categoria` y crea el evento real.
 - Entorno:
   - Nuevas envs: `GEMINI_API_KEY`, `OPENAI_API_KEY` (ver DEPLOY.md). 
 

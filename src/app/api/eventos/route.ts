@@ -40,7 +40,6 @@ export async function POST(req: Request) {
       "cash_collected",
       "facturacion",
       "anuncio_origen",
-      "nota_meta",
       "link_llamada",
       "transcripcion",
     ];

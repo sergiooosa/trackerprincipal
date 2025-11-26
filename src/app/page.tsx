@@ -64,7 +64,6 @@ function RevivirForm({
           cash_collected: Number(fd.get("cash_collected") || 0),
           facturacion: Number(fd.get("facturacion") || 0),
           anuncio_origen: String(fd.get("anuncio_origen") || "").toLowerCase(),
-          nota_meta: String(fd.get("nota_meta") || "").toLowerCase(),
           link_llamada: String(fd.get("link_llamada") || ""),
           transcripcion: String(fd.get("transcripcion") || ""),
         };
@@ -131,11 +130,7 @@ function RevivirForm({
         </div>
         <div>
           <label className="text-sm text-neutral-300">Anuncio origen</label>
-          <Input name="anuncio_origen" required className="mt-1" placeholder="exacto y en minúsculas" defaultValue={(evento.anuncio_origen ?? "").toLowerCase()} />
-        </div>
-        <div>
-          <label className="text-sm text-neutral-300">Nota (como en Meta, en minúscula o &quot;no&quot;)</label>
-          <Input name="nota_meta" required className="mt-1" />
+          <Input name="anuncio_origen" required className="mt-1" placeholder="exactamente como en Meta, en minúscula o &quot;no&quot;" defaultValue={(evento.anuncio_origen ?? "").toLowerCase()} />
         </div>
         <div className="sm:col-span-2">
           <label className="text-sm text-neutral-300">Link de la llamada</label>
@@ -419,7 +414,6 @@ export default function Home() {
                     cash_collected: Number(fd.get("cash_collected") || 0),
                     facturacion: Number(fd.get("facturacion") || 0),
                     anuncio_origen: String(fd.get("anuncio_origen") || "").toLowerCase(),
-                    nota_meta: String(fd.get("nota_meta") || "").toLowerCase(),
                     link_llamada: String(fd.get("link_llamada") || ""),
                     transcripcion: String(fd.get("transcripcion") || ""),
                   };
@@ -489,11 +483,7 @@ export default function Home() {
                   </div>
                   <div>
                     <label className="text-sm text-neutral-300">Anuncio origen</label>
-                    <Input name="anuncio_origen" required className="mt-1" placeholder="exacto y en minúsculas" />
-                  </div>
-                  <div>
-                    <label className="text-sm text-neutral-300">Nota (como en Meta, en minúscula o &quot;no&quot;)</label>
-                    <Input name="nota_meta" required className="mt-1" />
+                    <Input name="anuncio_origen" required className="mt-1" placeholder="exactamente como en Meta, en minúscula o &quot;no&quot;" />
                   </div>
                   <div className="sm:col-span-2">
                     <label className="text-sm text-neutral-300">Link de la llamada</label>
