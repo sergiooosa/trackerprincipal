@@ -769,90 +769,128 @@ export default function Home() {
             </div>
             
             <div className="overflow-x-auto">
-              <div className="min-w-full">
+              <div className="min-w-[1200px]">
                 {/* Header */}
                 <div className="grid grid-cols-15 gap-3 pb-4 mb-4 border-b border-neutral-600/20">
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Creativo</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Spend</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Agendas</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Tomadas</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Calificadas</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Show Rate</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Cierres</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Close Rate</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Cash Collected</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Ticket Promedio</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Costo/Show</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Costo/Agenda</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">CAC</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">ROAS</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider">Pendientes</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[220px]">Creativo</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[120px]">Spend</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[110px]">Agendas</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[110px]">Tomadas</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[120px]">Calificadas</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[120px]">Show Rate</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[110px]">Cierres</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[120px]">Close Rate</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[140px]">Cash Collected</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[150px]">Ticket Promedio</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[140px]">Costo/Show</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[140px]">Costo/Agenda</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[100px]">CAC</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[100px]">ROAS</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[120px]">Pendientes</div>
                 </div>
 
                 {/* Rows: Direct creatives */}
-                {(data?.adsByOrigin ?? [])
-                  .filter((row) => {
-                    const q = creativoFilter.toLowerCase().trim();
-                    if (!q) return true;
-                    return (row.anuncio_origen ?? "").toLowerCase().includes(q);
-                  })
-                  .sort((a, b) => {
-                    // Prioridad 1: Los que más cash collected generaron (descendente)
-                    const cashA = a.cash_collected || 0;
-                    const cashB = b.cash_collected || 0;
-                    if (cashA !== cashB) return cashB - cashA;
-                    
-                    // Prioridad 2: Los que más agendas generaron (descendente)
-                    const agendasA = a.agendas || 0;
-                    const agendasB = b.agendas || 0;
-                    if (agendasA !== agendasB) return agendasB - agendasA;
-                    
-                    // Prioridad 3: Los que más gastaron (descendente)
-                    const spendA = a.spend_allocated || 0;
-                    const spendB = b.spend_allocated || 0;
-                    if (spendA !== spendB) return spendB - spendA;
-                    
-                    // Prioridad 4: Alfabético por nombre
-                    return (a.anuncio_origen || '').localeCompare(b.anuncio_origen || '');
-                  })
-                  .map((row, index) => {
-                    const spend = row.spend_allocated || 0;
-                    const tomadas = row.tomadas || 0;
-                    const calificadas = row.calificadas || 0;
-                    const cierres = row.cierres || 0;
-                    const agendas = row.agendas || 0;
-                    const fact = row.facturacion || 0;
-                    const showRate = row.show_rate_pct !== undefined ? row.show_rate_pct.toFixed(1) + "%" : "—";
-                    const roas = spend ? (fact / spend).toFixed(2) + "x" : "—";
-                    const cpo = agendas ? currency(spend / agendas) : "$0";
-                    const cpshow = tomadas ? currency(spend / tomadas) : "$0";
-                    const cac = cierres ? currency(spend / cierres) : "$0";
-                    const cash = row.cash_collected ? Number(row.cash_collected) : 0;
-                    const ticket = cierres ? currency(cash / cierres) : "$0";
+                {(() => {
+                  const filtered = (data?.adsByOrigin ?? [])
+                    .filter((row) => {
+                      const q = creativoFilter.toLowerCase().trim();
+                      if (!q) return true;
+                      return (row.anuncio_origen ?? "").toLowerCase().includes(q);
+                    })
+                    .sort((a, b) => {
+                      const cashA = a.cash_collected || 0;
+                      const cashB = b.cash_collected || 0;
+                      if (cashA !== cashB) return cashB - cashA;
+                      const agendasA = a.agendas || 0;
+                      const agendasB = b.agendas || 0;
+                      if (agendasA !== agendasB) return agendasB - agendasA;
+                      const spendA = a.spend_allocated || 0;
+                      const spendB = b.spend_allocated || 0;
+                      if (spendA !== spendB) return spendB - spendA;
+                      return (a.anuncio_origen || '').localeCompare(b.anuncio_origen || '');
+                    });
 
-                    const closeRate = row.close_rate_pct !== undefined ? row.close_rate_pct.toFixed(1) + "%" : "—";
-                    const pendientes = row.llamadas_pendientes || 0;
+                  const totalCreativos = filtered.length;
+                  const sumSpend = filtered.reduce((s, r) => s + (r.spend_allocated || 0), 0);
+                  const sumAgendas = filtered.reduce((s, r) => s + (r.agendas || 0), 0);
+                  const sumTomadas = filtered.reduce((s, r) => s + (r.tomadas || 0), 0);
+                  const sumCalif = filtered.reduce((s, r) => s + (r.calificadas || 0), 0);
+                  const sumCierres = filtered.reduce((s, r) => s + (r.cierres || 0), 0);
+                  const sumCash = filtered.reduce((s, r) => s + Number(r.cash_collected || 0), 0);
+                  const sumFact = filtered.reduce((s, r) => s + (r.facturacion || 0), 0);
+                  const sumPend = filtered.reduce((s, r) => s + (r.llamadas_pendientes || 0), 0);
 
-                    return (
-                      <div key={row.anuncio_origen} className={`grid grid-cols-15 gap-3 py-3 px-2 rounded-lg ${index % 2 === 0 ? 'bg-neutral-800/10' : 'bg-transparent'} hover:bg-neutral-700/20 transition-colors`}>
-                        <div className="text-white text-sm">{row.anuncio_origen}</div>
-                        <div className="text-gray-300 text-sm">{currency(spend)}</div>
-                        <div className="text-cyan-300 text-sm">{agendas}</div>
-                        <div className="text-blue-300 text-sm">{tomadas}</div>
-                        <div className="text-purple-300 text-sm">{calificadas}</div>
-                        <div className="text-cyan-300 text-sm">{showRate}</div>
-                        <div className="text-emerald-400 text-sm">{cierres}</div>
-                        <div className="text-emerald-400 text-sm">{closeRate}</div>
-                        <div className="text-emerald-400 text-sm">{currency(cash)}</div>
-                        <div className="text-emerald-400 text-sm">{ticket}</div>
-                        <div className="text-gray-300 text-sm">{cpshow}</div>
-                        <div className="text-gray-300 text-sm">{cpo}</div>
-                        <div className="text-gray-300 text-sm">{cac}</div>
-                        <div className="text-emerald-400 text-sm">{roas}</div>
-                        <div className="text-yellow-300 text-sm">{pendientes}</div>
+                  const totalShowRate = sumAgendas > 0 ? (sumTomadas / sumAgendas) * 100 : 0;
+                  const totalCloseRate = sumAgendas > 0 ? (sumCierres / sumAgendas) * 100 : 0;
+                  const totalTicket = sumCierres > 0 ? sumCash / sumCierres : 0;
+                  const totalCpShow = sumTomadas > 0 ? sumSpend / sumTomadas : 0;
+                  const totalCpAgenda = sumAgendas > 0 ? sumSpend / sumAgendas : 0;
+                  const totalCAC = sumCierres > 0 ? sumSpend / sumCierres : 0;
+                  const totalROAS = sumSpend > 0 ? (sumFact / sumSpend) : 0;
+
+                  return (
+                    <>
+                      {filtered.map((row, index) => {
+                        const spend = row.spend_allocated || 0;
+                        const tomadas = row.tomadas || 0;
+                        const calificadas = row.calificadas || 0;
+                        const cierres = row.cierres || 0;
+                        const agendas = row.agendas || 0;
+                        const fact = row.facturacion || 0;
+                        const showRate = row.show_rate_pct !== undefined ? row.show_rate_pct.toFixed(1) + "%" : "—";
+                        const roas = spend ? (fact / spend).toFixed(2) + "x" : "—";
+                        const cpo = agendas ? currency(spend / agendas) : "$0";
+                        const cpshow = tomadas ? currency(spend / tomadas) : "$0";
+                        const cac = cierres ? currency(spend / cierres) : "$0";
+                        const cash = row.cash_collected ? Number(row.cash_collected) : 0;
+                        const ticket = cierres ? currency(cash / cierres) : "$0";
+                        const closeRate = row.close_rate_pct !== undefined ? row.close_rate_pct.toFixed(1) + "%" : "—";
+                        const pendientes = row.llamadas_pendientes || 0;
+
+                        return (
+                          <div key={row.anuncio_origen} className={`grid grid-cols-15 gap-3 py-3 px-2 rounded-lg ${index % 2 === 0 ? 'bg-neutral-800/10' : 'bg-transparent'} hover:bg-neutral-700/20 transition-colors`}>
+                            <div className="text-white text-sm whitespace-normal break-words min-w-[220px]">{row.anuncio_origen}</div>
+                            <div className="text-gray-300 text-sm min-w-[120px]">{currency(spend)}</div>
+                            <div className="text-cyan-300 text-sm min-w-[110px]">{agendas}</div>
+                            <div className="text-blue-300 text-sm min-w-[110px]">{tomadas}</div>
+                            <div className="text-purple-300 text-sm min-w-[120px]">{calificadas}</div>
+                            <div className="text-cyan-300 text-sm min-w-[120px]">{showRate}</div>
+                            <div className="text-emerald-400 text-sm min-w-[110px]">{cierres}</div>
+                            <div className="text-emerald-400 text-sm min-w-[120px]">{closeRate}</div>
+                            <div className="text-emerald-400 text-sm min-w-[140px]">{currency(cash)}</div>
+                            <div className="text-emerald-400 text-sm min-w-[150px]">{ticket}</div>
+                            <div className="text-gray-300 text-sm min-w-[140px]">{cpshow}</div>
+                            <div className="text-gray-300 text-sm min-w-[140px]">{cpo}</div>
+                            <div className="text-gray-300 text-sm min-w-[100px]">{cac}</div>
+                            <div className="text-emerald-400 text-sm min-w-[100px]">{roas}</div>
+                            <div className="text-yellow-300 text-sm min-w-[120px]">{pendientes}</div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Totales */}
+                      <div className="grid grid-cols-15 gap-3 py-3 px-2 mt-4 rounded-lg border-t border-neutral-600/30 bg-neutral-800/20">
+                        <div className="text-white text-sm font-semibold whitespace-normal break-words min-w-[220px]">
+                          Totales ({totalCreativos.toLocaleString()} creativos)
+                        </div>
+                        <div className="text-gray-100 text-sm font-semibold min-w-[120px]">{currency(sumSpend)}</div>
+                        <div className="text-cyan-200 text-sm font-semibold min-w-[110px]">{sumAgendas.toLocaleString()}</div>
+                        <div className="text-blue-200 text-sm font-semibold min-w-[110px]">{sumTomadas.toLocaleString()}</div>
+                        <div className="text-purple-200 text-sm font-semibold min-w-[120px]">{sumCalif.toLocaleString()}</div>
+                        <div className="text-cyan-200 text-sm font-semibold min-w-[120px]">{totalShowRate.toFixed(1)}%</div>
+                        <div className="text-emerald-200 text-sm font-semibold min-w-[110px]">{sumCierres.toLocaleString()}</div>
+                        <div className="text-emerald-200 text-sm font-semibold min-w-[120px]">{totalCloseRate.toFixed(1)}%</div>
+                        <div className="text-emerald-200 text-sm font-semibold min-w-[140px]">{currency(sumCash)}</div>
+                        <div className="text-emerald-200 text-sm font-semibold min-w-[150px]">{currency(totalTicket)}</div>
+                        <div className="text-gray-100 text-sm font-semibold min-w-[140px]">{currency(totalCpShow)}</div>
+                        <div className="text-gray-100 text-sm font-semibold min-w-[140px]">{currency(totalCpAgenda)}</div>
+                        <div className="text-gray-100 text-sm font-semibold min-w-[100px]">{currency(totalCAC)}</div>
+                        <div className="text-emerald-200 text-sm font-semibold min-w-[100px]">{sumSpend > 0 ? `${totalROAS.toFixed(2)}x` : "—"}</div>
+                        <div className="text-yellow-200 text-sm font-semibold min-w-[120px]">{sumPend.toLocaleString()}</div>
                       </div>
-                    );
-                  })}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>
