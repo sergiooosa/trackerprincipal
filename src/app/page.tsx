@@ -605,12 +605,13 @@ export default function Home() {
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader><CardTitle className="text-white">Reuniones asistidas (show rate)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-cyan-300">{(() => {
-                // Numerador: shows desde eventos_llamadas_tiempo_real (alineado con Leaderboard)
-                const shows = totalShowsEventos;
-                // Denominador: agendas válidas (resumenes_diarios_agendas: NOT IN ('pdte','cancelada'))
-                const agendasValidas = data?.kpis?.agendas_efectivas ?? 0;
-                const pct = agendasValidas > 0 ? (shows / agendasValidas) * 100 : 0;
-                return `${shows.toLocaleString()} (${pct.toFixed(1)}%)`;
+                // Mantener el numerador visible desde eventos (consistencia con Leaderboard)
+                const showsVisibles = totalShowsEventos;
+                // Solo el porcentaje (show rate) se calcula desde agendas por fecha de la reunión:
+                // asistieron = ('Cerrada','Ofertada','No_Ofertada')
+                // total_esperado = ('Cerrada','Ofertada','No_Ofertada','no_show')
+                const pct = Number(data?.kpis?.show_rate_real ?? 0);
+                return `${showsVisibles.toLocaleString()} (${pct.toFixed(1)}%)`;
               })()}</CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">

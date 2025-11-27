@@ -81,6 +81,21 @@ export async function GET(req: NextRequest) {
         FROM resumenes_diarios_agendas ra
         JOIN parametros p ON ra.id_cuenta = p.id_cuenta
         WHERE ra.fecha BETWEEN p.desde_fecha AND p.hasta_fecha
+      ),
+      -- Show Rate REAL por fecha de la reunión: 
+      -- Numerador: ('cerrada','ofertada','no_ofertada')
+      -- Denominador: ('cerrada','ofertada','no_ofertada','no_show')
+      agendas_showrate AS (
+        SELECT
+          COUNT(*) FILTER (
+            WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada')
+          ) AS asistieron,
+          COUNT(*) FILTER (
+            WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada','no_show')
+          ) AS total_esperado
+        FROM resumenes_diarios_agendas ra
+        JOIN parametros p ON ra.id_cuenta = p.id_cuenta
+        WHERE (("fecha de la reunion" AT TIME ZONE p.zona)::date) BETWEEN p.desde_fecha AND p.hasta_fecha
       )
       SELECT
         -- Métricas de Publicidad (desde resumenes_diarios_ads)
@@ -146,11 +161,20 @@ export async function GET(req: NextRequest) {
         GREATEST(
           COALESCE(a.reuniones_agendadas, 0) - COALESCE(e.total_llamadas_tomadas, 0),
           0
-        ) AS no_show
+        ) AS no_show,
+
+        -- Show Rate real basado en fecha de la reunión (agendas_showrate)
+        COALESCE(sr.asistieron, 0) AS asistieron_show_agendas,
+        COALESCE(sr.total_esperado, 0) AS total_esperado_show_agendas,
+        CASE 
+          WHEN COALESCE(sr.total_esperado, 0) = 0 THEN 0
+          ELSE ROUND((COALESCE(sr.asistieron, 0)::numeric / NULLIF(sr.total_esperado, 0)) * 100, 1)
+        END AS show_rate_real
 
       FROM eventos_llamadas e
       LEFT JOIN datos_publicidad d ON TRUE
-      LEFT JOIN datos_agendas a ON TRUE;
+      LEFT JOIN datos_agendas a ON TRUE
+      LEFT JOIN agendas_showrate sr ON TRUE;
     `;
 
     const seriesQuery = `
