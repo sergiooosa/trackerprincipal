@@ -175,6 +175,9 @@ type ApiResponse = {
     no_show_agendas: number;
     llamadas_canceladas: number;
     llamadas_pendientes: number;
+    show_rate_real?: number;
+    asistieron_show_agendas?: number;
+    total_esperado_show_agendas?: number;
   };
   series: Array<{
     fecha: string;

@@ -680,6 +680,10 @@ export async function GET(req: NextRequest) {
           no_show: Number(kpiRow.no_show) || 0,
           no_show_agendas: Number(kpiRow.no_show_agendas) || 0,
           llamadas_canceladas: Number(kpiRow.llamadas_canceladas) || 0,
+          // Show rate real (por fecha de la reunión)
+          show_rate_real: Number(kpiRow.show_rate_real) || 0,
+          asistieron_show_agendas: Number(kpiRow.asistieron_show_agendas) || 0,
+          total_esperado_show_agendas: Number(kpiRow.total_esperado_show_agendas) || 0,
         },
         series: seriesRes.rows,
         closers: closersRes.rows,
