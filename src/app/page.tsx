@@ -769,24 +769,24 @@ export default function Home() {
             </div>
             
             <div className="overflow-x-auto">
-              <div className="min-w-[1200px]">
+              <div className="min-w-full">
                 {/* Header */}
                 <div className="grid grid-cols-15 gap-3 pb-4 mb-4 border-b border-neutral-600/20">
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[220px]">Creativo</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[120px]">Spend</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[110px]">Agendas</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[110px]">Tomadas</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[120px]">Calificadas</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[120px]">Show Rate</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[110px]">Cierres</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[120px]">Close Rate</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[140px]">Cash Collected</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[150px]">Ticket Promedio</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[140px]">Costo/Show</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[140px]">Costo/Agenda</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[100px]">CAC</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[100px]">ROAS</div>
-                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words min-w-[120px]">Pendientes</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words leading-tight max-w-[220px]">Creativo</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words leading-tight max-w-[120px]">Spend</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words leading-tight max-w-[110px]">Agendas</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words leading-tight max-w-[110px]">Tomadas</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words leading-tight max-w-[120px]">Calificadas</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words leading-tight max-w-[120px]">Show Rate</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words leading-tight max-w-[110px]">Cierres</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words leading-tight max-w-[120px]">Close Rate</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words leading-tight max-w-[140px]">Cash Collected</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words leading-tight max-w-[150px]">Ticket Promedio</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words leading-tight max-w-[140px]">Costo/Show</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words leading-tight max-w-[140px]">Costo/Agenda</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words leading-tight max-w-[100px]">CAC</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words leading-tight max-w-[100px]">ROAS</div>
+                  <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words leading-tight max-w-[120px]">Pendientes</div>
                 </div>
 
                 {/* Rows: Direct creatives */}
@@ -822,6 +822,22 @@ export default function Home() {
 
                   const totalShowRate = sumAgendas > 0 ? (sumTomadas / sumAgendas) * 100 : 0;
                   const totalCloseRate = sumAgendas > 0 ? (sumCierres / sumAgendas) * 100 : 0;
+
+                  // Promedio simple de % por creativo (solo filas con dato válido)
+                  const showRateValues = filtered.map(r => {
+                    if (r.show_rate_pct !== undefined && r.show_rate_pct !== null) return Number(r.show_rate_pct);
+                    const ag = r.agendas || 0;
+                    const tm = r.tomadas || 0;
+                    return ag > 0 ? (tm / ag) * 100 : null;
+                  }).filter((v): v is number => v !== null && !Number.isNaN(v));
+                  const closeRateValues = filtered.map(r => {
+                    if (r.close_rate_pct !== undefined && r.close_rate_pct !== null) return Number(r.close_rate_pct);
+                    const ag = r.agendas || 0;
+                    const ci = r.cierres || 0;
+                    return ag > 0 ? (ci / ag) * 100 : null;
+                  }).filter((v): v is number => v !== null && !Number.isNaN(v));
+                  const avgShowRate = showRateValues.length > 0 ? (showRateValues.reduce((s, v) => s + v, 0) / showRateValues.length) : 0;
+                  const avgCloseRate = closeRateValues.length > 0 ? (closeRateValues.reduce((s, v) => s + v, 0) / closeRateValues.length) : 0;
                   const totalTicket = sumCierres > 0 ? sumCash / sumCierres : 0;
                   const totalCpShow = sumTomadas > 0 ? sumSpend / sumTomadas : 0;
                   const totalCpAgenda = sumAgendas > 0 ? sumSpend / sumAgendas : 0;
@@ -849,44 +865,48 @@ export default function Home() {
 
                         return (
                           <div key={row.anuncio_origen} className={`grid grid-cols-15 gap-3 py-3 px-2 rounded-lg ${index % 2 === 0 ? 'bg-neutral-800/10' : 'bg-transparent'} hover:bg-neutral-700/20 transition-colors`}>
-                            <div className="text-white text-sm whitespace-normal break-words min-w-[220px]">{row.anuncio_origen}</div>
-                            <div className="text-gray-300 text-sm min-w-[120px]">{currency(spend)}</div>
-                            <div className="text-cyan-300 text-sm min-w-[110px]">{agendas}</div>
-                            <div className="text-blue-300 text-sm min-w-[110px]">{tomadas}</div>
-                            <div className="text-purple-300 text-sm min-w-[120px]">{calificadas}</div>
-                            <div className="text-cyan-300 text-sm min-w-[120px]">{showRate}</div>
-                            <div className="text-emerald-400 text-sm min-w-[110px]">{cierres}</div>
-                            <div className="text-emerald-400 text-sm min-w-[120px]">{closeRate}</div>
-                            <div className="text-emerald-400 text-sm min-w-[140px]">{currency(cash)}</div>
-                            <div className="text-emerald-400 text-sm min-w-[150px]">{ticket}</div>
-                            <div className="text-gray-300 text-sm min-w-[140px]">{cpshow}</div>
-                            <div className="text-gray-300 text-sm min-w-[140px]">{cpo}</div>
-                            <div className="text-gray-300 text-sm min-w-[100px]">{cac}</div>
-                            <div className="text-emerald-400 text-sm min-w-[100px]">{roas}</div>
-                            <div className="text-yellow-300 text-sm min-w-[120px]">{pendientes}</div>
+                            <div className="text-white text-sm whitespace-normal break-words leading-tight max-w-[220px]">{row.anuncio_origen}</div>
+                            <div className="text-gray-300 text-sm leading-tight max-w-[120px]">{currency(spend)}</div>
+                            <div className="text-cyan-300 text-sm leading-tight max-w-[110px]">{agendas}</div>
+                            <div className="text-blue-300 text-sm leading-tight max-w-[110px]">{tomadas}</div>
+                            <div className="text-purple-300 text-sm leading-tight max-w-[120px]">{calificadas}</div>
+                            <div className="text-cyan-300 text-sm leading-tight max-w-[120px]">{showRate}</div>
+                            <div className="text-emerald-400 text-sm leading-tight max-w-[110px]">{cierres}</div>
+                            <div className="text-emerald-400 text-sm leading-tight max-w-[120px]">{closeRate}</div>
+                            <div className="text-emerald-400 text-sm leading-tight max-w-[140px]">{currency(cash)}</div>
+                            <div className="text-emerald-400 text-sm leading-tight max-w-[150px]">{ticket}</div>
+                            <div className="text-gray-300 text-sm leading-tight max-w-[140px]">{cpshow}</div>
+                            <div className="text-gray-300 text-sm leading-tight max-w-[140px]">{cpo}</div>
+                            <div className="text-gray-300 text-sm leading-tight max-w-[100px]">{cac}</div>
+                            <div className="text-emerald-400 text-sm leading-tight max-w-[100px]">{roas}</div>
+                            <div className="text-yellow-300 text-sm leading-tight max-w-[120px]">{pendientes}</div>
                           </div>
                         );
                       })}
 
                       {/* Totales */}
                       <div className="grid grid-cols-15 gap-3 py-3 px-2 mt-4 rounded-lg border-t border-neutral-600/30 bg-neutral-800/20">
-                        <div className="text-white text-sm font-semibold whitespace-normal break-words min-w-[220px]">
+                        <div className="text-white text-sm font-semibold whitespace-normal break-words leading-tight max-w-[220px]">
                           Totales ({totalCreativos.toLocaleString()} creativos)
                         </div>
-                        <div className="text-gray-100 text-sm font-semibold min-w-[120px]">{currency(sumSpend)}</div>
-                        <div className="text-cyan-200 text-sm font-semibold min-w-[110px]">{sumAgendas.toLocaleString()}</div>
-                        <div className="text-blue-200 text-sm font-semibold min-w-[110px]">{sumTomadas.toLocaleString()}</div>
-                        <div className="text-purple-200 text-sm font-semibold min-w-[120px]">{sumCalif.toLocaleString()}</div>
-                        <div className="text-cyan-200 text-sm font-semibold min-w-[120px]">{totalShowRate.toFixed(1)}%</div>
-                        <div className="text-emerald-200 text-sm font-semibold min-w-[110px]">{sumCierres.toLocaleString()}</div>
-                        <div className="text-emerald-200 text-sm font-semibold min-w-[120px]">{totalCloseRate.toFixed(1)}%</div>
-                        <div className="text-emerald-200 text-sm font-semibold min-w-[140px]">{currency(sumCash)}</div>
-                        <div className="text-emerald-200 text-sm font-semibold min-w-[150px]">{currency(totalTicket)}</div>
-                        <div className="text-gray-100 text-sm font-semibold min-w-[140px]">{currency(totalCpShow)}</div>
-                        <div className="text-gray-100 text-sm font-semibold min-w-[140px]">{currency(totalCpAgenda)}</div>
-                        <div className="text-gray-100 text-sm font-semibold min-w-[100px]">{currency(totalCAC)}</div>
-                        <div className="text-emerald-200 text-sm font-semibold min-w-[100px]">{sumSpend > 0 ? `${totalROAS.toFixed(2)}x` : "—"}</div>
-                        <div className="text-yellow-200 text-sm font-semibold min-w-[120px]">{sumPend.toLocaleString()}</div>
+                        <div className="text-gray-100 text-sm font-semibold leading-tight max-w-[120px]">{currency(sumSpend)}</div>
+                        <div className="text-cyan-200 text-sm font-semibold leading-tight max-w-[110px]">{sumAgendas.toLocaleString()}</div>
+                        <div className="text-blue-200 text-sm font-semibold leading-tight max-w-[110px]">{sumTomadas.toLocaleString()}</div>
+                        <div className="text-purple-200 text-sm font-semibold leading-tight max-w-[120px]">{sumCalif.toLocaleString()}</div>
+                        <div className="text-cyan-200 text-sm font-semibold leading-tight max-w-[120px]">
+                          {totalShowRate.toFixed(1)}% <span className="text-neutral-400">(avg {avgShowRate.toFixed(1)}%)</span>
+                        </div>
+                        <div className="text-emerald-200 text-sm font-semibold leading-tight max-w-[110px]">{sumCierres.toLocaleString()}</div>
+                        <div className="text-emerald-200 text-sm font-semibold leading-tight max-w-[120px]">
+                          {totalCloseRate.toFixed(1)}% <span className="text-neutral-400">(avg {avgCloseRate.toFixed(1)}%)</span>
+                        </div>
+                        <div className="text-emerald-200 text-sm font-semibold leading-tight max-w-[140px]">{currency(sumCash)}</div>
+                        <div className="text-emerald-200 text-sm font-semibold leading-tight max-w-[150px]">{currency(totalTicket)}</div>
+                        <div className="text-gray-100 text-sm font-semibold leading-tight max-w-[140px]">{currency(totalCpShow)}</div>
+                        <div className="text-gray-100 text-sm font-semibold leading-tight max-w-[140px]">{currency(totalCpAgenda)}</div>
+                        <div className="text-gray-100 text-sm font-semibold leading-tight max-w-[100px]">{currency(totalCAC)}</div>
+                        <div className="text-emerald-200 text-sm font-semibold leading-tight max-w-[100px]">{sumSpend > 0 ? `${totalROAS.toFixed(2)}x` : "—"}</div>
+                        <div className="text-yellow-200 text-sm font-semibold leading-tight max-w-[120px]">{sumPend.toLocaleString()}</div>
                       </div>
                     </>
                   );
