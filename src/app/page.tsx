@@ -769,7 +769,7 @@ export default function Home() {
             </div>
             
             <div className="overflow-x-auto">
-              <div className="min-w-full">
+              <div className="min-w-full hidden md:block">
                 {/* Header */}
                 <div className="grid grid-cols-15 gap-3 pb-4 mb-4 border-b border-neutral-600/20">
                   <div className="text-neutral-300 font-semibold text-sm uppercase tracking-wider whitespace-normal break-words leading-tight max-w-[220px]">Creativo</div>
@@ -907,6 +907,128 @@ export default function Home() {
                         <div className="text-gray-100 text-sm font-semibold leading-tight max-w-[100px]">{currency(totalCAC)}</div>
                         <div className="text-emerald-200 text-sm font-semibold leading-tight max-w-[100px]">{sumSpend > 0 ? `${totalROAS.toFixed(2)}x` : "—"}</div>
                         <div className="text-yellow-200 text-sm font-semibold leading-tight max-w-[120px]">{sumPend.toLocaleString()}</div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+              {/* Layout compacto para pantallas pequeñas */}
+              <div className="md:hidden">
+                {(() => {
+                  const filtered = (data?.adsByOrigin ?? [])
+                    .filter((row) => {
+                      const q = creativoFilter.toLowerCase().trim();
+                      if (!q) return true;
+                      return (row.anuncio_origen ?? "").toLowerCase().includes(q);
+                    })
+                    .sort((a, b) => {
+                      const cashA = a.cash_collected || 0;
+                      const cashB = b.cash_collected || 0;
+                      if (cashA !== cashB) return cashB - cashA;
+                      const agendasA = a.agendas || 0;
+                      const agendasB = b.agendas || 0;
+                      if (agendasA !== agendasB) return agendasB - agendasA;
+                      const spendA = a.spend_allocated || 0;
+                      const spendB = b.spend_allocated || 0;
+                      if (spendA !== spendB) return spendB - spendA;
+                      return (a.anuncio_origen || '').localeCompare(b.anuncio_origen || '');
+                    });
+
+                  const totalCreativos = filtered.length;
+                  const sumSpend = filtered.reduce((s, r) => s + (r.spend_allocated || 0), 0);
+                  const sumAgendas = filtered.reduce((s, r) => s + (r.agendas || 0), 0);
+                  const sumTomadas = filtered.reduce((s, r) => s + (r.tomadas || 0), 0);
+                  const sumCalif = filtered.reduce((s, r) => s + (r.calificadas || 0), 0);
+                  const sumCierres = filtered.reduce((s, r) => s + (r.cierres || 0), 0);
+                  const sumCash = filtered.reduce((s, r) => s + Number(r.cash_collected || 0), 0);
+                  const sumFact = filtered.reduce((s, r) => s + (r.facturacion || 0), 0);
+                  const sumPend = filtered.reduce((s, r) => s + (r.llamadas_pendientes || 0), 0);
+
+                  const totalShowRate = sumAgendas > 0 ? (sumTomadas / sumAgendas) * 100 : 0;
+                  const totalCloseRate = sumAgendas > 0 ? (sumCierres / sumAgendas) * 100 : 0;
+
+                  const showRateValues = filtered.map(r => {
+                    if (r.show_rate_pct !== undefined && r.show_rate_pct !== null) return Number(r.show_rate_pct);
+                    const ag = r.agendas || 0;
+                    const tm = r.tomadas || 0;
+                    return ag > 0 ? (tm / ag) * 100 : null;
+                  }).filter((v): v is number => v !== null && !Number.isNaN(v));
+                  const closeRateValues = filtered.map(r => {
+                    if (r.close_rate_pct !== undefined && r.close_rate_pct !== null) return Number(r.close_rate_pct);
+                    const ag = r.agendas || 0;
+                    const ci = r.cierres || 0;
+                    return ag > 0 ? (ci / ag) * 100 : null;
+                  }).filter((v): v is number => v !== null && !Number.isNaN(v));
+                  const avgShowRate = showRateValues.length > 0 ? (showRateValues.reduce((s, v) => s + v, 0) / showRateValues.length) : 0;
+                  const avgCloseRate = closeRateValues.length > 0 ? (closeRateValues.reduce((s, v) => s + v, 0) / closeRateValues.length) : 0;
+
+                  return (
+                    <>
+                      {filtered.map((row) => {
+                        const spend = row.spend_allocated || 0;
+                        const tomadas = row.tomadas || 0;
+                        const calificadas = row.calificadas || 0;
+                        const cierres = row.cierres || 0;
+                        const agendas = row.agendas || 0;
+                        const fact = row.facturacion || 0;
+                        const showRate = row.show_rate_pct !== undefined ? row.show_rate_pct.toFixed(1) + "%" : (agendas > 0 ? ((tomadas / agendas) * 100).toFixed(1) + "%" : "—");
+                        const roas = spend ? (fact / spend).toFixed(2) + "x" : "—";
+                        const cpo = agendas ? currency(spend / agendas) : "$0";
+                        const cpshow = tomadas ? currency(spend / tomadas) : "$0";
+                        const cac = cierres ? currency(spend / cierres) : "$0";
+                        const cash = row.cash_collected ? Number(row.cash_collected) : 0;
+                        const ticket = cierres ? currency(cash / cierres) : "$0";
+                        const closeRate = row.close_rate_pct !== undefined ? row.close_rate_pct.toFixed(1) + "%" : (agendas > 0 ? ((cierres / agendas) * 100).toFixed(1) + "%" : "—");
+                        const pendientes = row.llamadas_pendientes || 0;
+
+                        return (
+                          <div key={row.anuncio_origen} className="bg-neutral-800/30 rounded-lg p-3 mb-3">
+                            <div className="text-white font-medium text-sm whitespace-normal break-words leading-tight mb-2">
+                              {row.anuncio_origen}
+                            </div>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                              <div className="text-neutral-400">Spend</div><div className="text-gray-200">{currency(spend)}</div>
+                              <div className="text-neutral-400">Agendas</div><div className="text-cyan-200">{agendas}</div>
+                              <div className="text-neutral-400">Tomadas</div><div className="text-blue-200">{tomadas}</div>
+                              <div className="text-neutral-400">Calificadas</div><div className="text-purple-200">{calificadas}</div>
+                              <div className="text-neutral-400">Show Rate</div><div className="text-cyan-200">{showRate}</div>
+                              <div className="text-neutral-400">Cierres</div><div className="text-emerald-200">{cierres}</div>
+                              <div className="text-neutral-400">Close Rate</div><div className="text-emerald-200">{closeRate}</div>
+                              <div className="text-neutral-400">Cash</div><div className="text-emerald-200">{currency(cash)}</div>
+                              <div className="text-neutral-400">Ticket</div><div className="text-emerald-200">{ticket}</div>
+                              <div className="text-neutral-400">Costo/Show</div><div className="text-gray-200">{cpshow}</div>
+                              <div className="text-neutral-400">Costo/Agenda</div><div className="text-gray-200">{cpo}</div>
+                              <div className="text-neutral-400">CAC</div><div className="text-gray-200">{cac}</div>
+                              <div className="text-neutral-400">ROAS</div><div className="text-emerald-200">{roas}</div>
+                              <div className="text-neutral-400">Pendientes</div><div className="text-yellow-200">{pendientes}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Totales (compacto) */}
+                      <div className="bg-neutral-800/40 rounded-lg p-3 mt-4 border border-neutral-700/40">
+                        <div className="text-white font-semibold text-sm whitespace-normal break-words leading-tight mb-2">
+                          Totales ({totalCreativos.toLocaleString()} creativos)
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                          <div className="text-neutral-400">Spend</div><div className="text-gray-100 font-semibold">{currency(sumSpend)}</div>
+                          <div className="text-neutral-400">Agendas</div><div className="text-cyan-200 font-semibold">{sumAgendas.toLocaleString()}</div>
+                          <div className="text-neutral-400">Tomadas</div><div className="text-blue-200 font-semibold">{sumTomadas.toLocaleString()}</div>
+                          <div className="text-neutral-400">Calificadas</div><div className="text-purple-200 font-semibold">{sumCalif.toLocaleString()}</div>
+                          <div className="text-neutral-400">Show Rate</div>
+                          <div className="text-cyan-200 font-semibold">{totalShowRate.toFixed(1)}% <span className="text-neutral-400">(avg {avgShowRate.toFixed(1)}%)</span></div>
+                          <div className="text-neutral-400">Cierres</div><div className="text-emerald-200 font-semibold">{sumCierres.toLocaleString()}</div>
+                          <div className="text-neutral-400">Close Rate</div>
+                          <div className="text-emerald-200 font-semibold">{totalCloseRate.toFixed(1)}% <span className="text-neutral-400">(avg {avgCloseRate.toFixed(1)}%)</span></div>
+                          <div className="text-neutral-400">Cash</div><div className="text-emerald-200 font-semibold">{currency(sumCash)}</div>
+                          <div className="text-neutral-400">Ticket</div><div className="text-emerald-200 font-semibold">{currency(sumCierres > 0 ? sumCash / sumCierres : 0)}</div>
+                          <div className="text-neutral-400">Costo/Show</div><div className="text-gray-100 font-semibold">{currency(sumTomadas > 0 ? sumSpend / sumTomadas : 0)}</div>
+                          <div className="text-neutral-400">Costo/Agenda</div><div className="text-gray-100 font-semibold">{currency(sumAgendas > 0 ? sumSpend / sumAgendas : 0)}</div>
+                          <div className="text-neutral-400">CAC</div><div className="text-gray-100 font-semibold">{currency(sumCierres > 0 ? sumSpend / sumCierres : 0)}</div>
+                          <div className="text-neutral-400">ROAS</div><div className="text-emerald-200 font-semibold">{sumSpend > 0 ? `${(sumFact / sumSpend).toFixed(2)}x` : "—"}</div>
+                          <div className="text-neutral-400">Pendientes</div><div className="text-yellow-200 font-semibold">{sumPend.toLocaleString()}</div>
+                        </div>
                       </div>
                     </>
                   );
