@@ -19,6 +19,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Formato de mensajes inválido" }, { status: 400 });
     }
 
+    // Debug: verificar mensajes recibidos
+    console.log(`[Aura API] Recibidos ${messages.length} mensajes`);
+    const userMsgs = messages.filter(m => m.role === "user");
+    console.log(`[Aura API] Mensajes del usuario: ${userMsgs.length}`);
+    if (userMsgs.length > 0) {
+      console.log(`[Aura API] Último mensaje usuario: "${userMsgs[userMsgs.length - 1]?.content?.slice(0, 100)}"`);
+    }
+
     // Obtener zona horaria del cliente (server-side desde env)
     const timezone = process.env.NEXT_PUBLIC_CLIENT_TIMEZONE || "America/Bogota";
 
