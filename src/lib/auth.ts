@@ -76,24 +76,39 @@ export function attachSessionCookie(
     req?.headers.get("referer")?.includes("leadconnectorhq.com") ||
     req?.headers.get("origin")?.includes("leadconnectorhq.com");
   
-  // Si está embebido, usar sameSite: "none" y secure: true (requisito del navegador)
-  // Si no está embebido, usar sameSite: "lax" para mejor seguridad
-  const sameSite = isEmbedded ? ("none" as const) : ("lax" as const);
-  // En iframes siempre secure: true (requisito del navegador para sameSite: none)
-  // En producción normal también secure: true
-  const secure = isEmbedded ? true : isProd;
+  // Si ALLOW_IFRAME está activado, SIEMPRE usar sameSite: "none" y secure: true
+  // Esto es CRÍTICO: sameSite: "none" REQUIERE secure: true, sin excepciones
+  const sameSite = allowIframe ? ("none" as const) : (isEmbedded ? ("none" as const) : ("lax" as const));
+  // Si ALLOW_IFRAME=true, SIEMPRE secure: true (no importa si es dev o prod)
+  // Si no, usar secure solo en producción
+  const secure = allowIframe ? true : (isEmbedded ? true : isProd);
   
-  console.log(`[Auth] Setting cookie - sameSite: ${sameSite}, secure: ${secure}, allowIframe: ${allowIframe}, isEmbedded: ${isEmbedded}`);
+  // CRÍTICO: Verificar que secure sea true cuando sameSite es "none"
+  // El navegador rechaza cookies con sameSite="none" si secure no es true
+  const finalSecure = (sameSite === "none") ? true : secure;
+  
+  console.log(`[Auth] Setting cookie - name: ${COOKIE_NAME}, sameSite: ${sameSite}, secure: ${finalSecure}, allowIframe: ${allowIframe}, isEmbedded: ${isEmbedded}, isProd: ${isProd}`);
+  console.log(`[Auth] Cookie config - maxAge: ${maxAge}, path: /, httpOnly: true`);
   
   res.cookies.set({
     name: COOKIE_NAME,
     value: token,
     httpOnly: true,
     sameSite: sameSite,
-    secure: secure,
+    secure: finalSecure, // Asegurar que siempre sea true si sameSite es "none"
     maxAge: maxAge,
     path: "/",
   });
+  
+  // Verificar que se guardó correctamente leyendo el header Set-Cookie
+  const setCookieHeader = res.headers.get("set-cookie");
+  if (setCookieHeader) {
+    console.log(`[Auth] Set-Cookie header generado: ${setCookieHeader.substring(0, 300)}`);
+    // Verificar que contiene Secure si sameSite es none
+    if (sameSite === "none" && !setCookieHeader.includes("Secure")) {
+      console.error(`[Auth] ERROR CRÍTICO: Cookie con sameSite=None no tiene flag Secure!`);
+    }
+  }
 }
 
 export function clearSessionCookie(res: NextResponse, req?: NextRequest) {
@@ -104,8 +119,9 @@ export function clearSessionCookie(res: NextResponse, req?: NextRequest) {
     req?.headers.get("referer")?.includes("leadconnectorhq.com") ||
     req?.headers.get("origin")?.includes("leadconnectorhq.com");
   
-  const sameSite = isEmbedded ? ("none" as const) : ("lax" as const);
-  const secure = isEmbedded ? true : (process.env.NODE_ENV === "production");
+  const allowIframe = process.env.ALLOW_IFRAME === "true";
+  const sameSite = allowIframe ? ("none" as const) : (isEmbedded ? ("none" as const) : ("lax" as const));
+  const secure = allowIframe ? true : (isEmbedded ? true : (process.env.NODE_ENV === "production"));
   
   res.cookies.set({
     name: COOKIE_NAME,
