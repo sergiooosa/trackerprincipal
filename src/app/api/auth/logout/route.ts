@@ -6,7 +6,7 @@ export async function POST(req: NextRequest) {
   const res = NextResponse.json({ ok: true });
   try {
     const me = await readSession(req);
-    clearSessionCookie(res);
+    clearSessionCookie(res, req);
     if (me) {
       try {
         await pool.query(

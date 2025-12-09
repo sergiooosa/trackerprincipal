@@ -56,27 +56,52 @@ export async function readSession(req: NextRequest): Promise<SessionUser | null>
   }
 }
 
-export function attachSessionCookie(res: NextResponse, token: string, remember: boolean = false) {
+export function attachSessionCookie(
+  res: NextResponse, 
+  token: string, 
+  remember: boolean = false,
+  req?: NextRequest
+) {
   const isProd = process.env.NODE_ENV === "production";
   const maxAge = remember ? THIRTY_DAYS_SECONDS : ONE_DAY_SECONDS;
+  
+  // Detectar si está en un iframe o contexto embebido
+  const isEmbedded = 
+    process.env.ALLOW_IFRAME === "true" ||
+    req?.headers.get("sec-fetch-dest") === "iframe" ||
+    req?.headers.get("x-frame-options") !== null;
+  
+  // Si está embebido, usar sameSite: "none" y secure: true (requisito del navegador)
+  // Si no está embebido, usar sameSite: "lax" para mejor seguridad
+  const sameSite = isEmbedded ? ("none" as const) : ("lax" as const);
+  const secure = isEmbedded ? true : isProd; // En iframes siempre secure: true
+  
   res.cookies.set({
     name: COOKIE_NAME,
     value: token,
     httpOnly: true,
-    sameSite: "lax",
-    secure: isProd,
+    sameSite: sameSite,
+    secure: secure,
     maxAge: maxAge,
     path: "/",
   });
 }
 
-export function clearSessionCookie(res: NextResponse) {
+export function clearSessionCookie(res: NextResponse, req?: NextRequest) {
+  const isEmbedded = 
+    process.env.ALLOW_IFRAME === "true" ||
+    req?.headers.get("sec-fetch-dest") === "iframe" ||
+    req?.headers.get("x-frame-options") !== null;
+  
+  const sameSite = isEmbedded ? ("none" as const) : ("lax" as const);
+  const secure = isEmbedded ? true : (process.env.NODE_ENV === "production");
+  
   res.cookies.set({
     name: COOKIE_NAME,
     value: "",
     httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    sameSite: sameSite,
+    secure: secure,
     maxAge: 0,
     path: "/",
   });

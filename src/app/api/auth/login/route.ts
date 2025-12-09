@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       };
       const token = await createSession(user, remember);
       const res = NextResponse.json({ ok: true, user });
-      attachSessionCookie(res, token, remember);
+      attachSessionCookie(res, token, remember, req);
       // Registrar acción
       try {
         await pool.query(
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
         };
         const token = await createSession(user, remember);
         const res = NextResponse.json({ ok: true, user });
-        attachSessionCookie(res, token, remember);
+        attachSessionCookie(res, token, remember, req);
         try {
           await pool.query(
             `INSERT INTO historial_acciones (id_cuenta, usuario_asociado, accion, detalles) VALUES ($1,$2,$3,$4::jsonb)`,
