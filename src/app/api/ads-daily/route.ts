@@ -30,6 +30,17 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Generar todas las fechas del rango (incluso si no hay datos)
+    const start = new Date(fechaInicio);
+    const end = new Date(fechaFin);
+    const todasLasFechas: string[] = [];
+    const current = new Date(start);
+    while (current <= end) {
+      todasLasFechas.push(current.toISOString().split('T')[0]);
+      current.setDate(current.getDate() + 1);
+    }
+
+    // Obtener datos existentes
     const query = `
       SELECT 
         fecha,
@@ -41,13 +52,17 @@ export async function GET(req: NextRequest) {
     `;
 
     const result = await pool.query(query, [me.id_cuenta, fechaInicio, fechaFin]);
+    const datosExistentes = new Map(
+      result.rows.map(row => [row.fecha, row.valor ?? 0])
+    );
 
-    return NextResponse.json({
-      datos: result.rows.map(row => ({
-        fecha: row.fecha,
-        valor: row.valor ?? 0
-      }))
-    });
+    // Combinar: todas las fechas con sus valores (0 si no existe)
+    const datos = todasLasFechas.map(fecha => ({
+      fecha,
+      valor: datosExistentes.get(fecha) ?? 0
+    }));
+
+    return NextResponse.json({ datos });
   } catch (e: unknown) {
     const errorMsg = e instanceof Error ? e.message : "Error desconocido";
     console.error("[API Ads Daily GET]", errorMsg);
@@ -105,14 +120,30 @@ export async function PATCH(req: NextRequest) {
         const valorAnterior = selectResult.rows[0]?.valor_anterior ?? 0;
 
         // Usar UPSERT: INSERT si no existe, UPDATE si existe
-        // Asumimos que hay un constraint único en (id_cuenta, fecha) o usamos ON CONFLICT
-        const upsertQuery = `
-          INSERT INTO resumenes_diarios_ads (id_cuenta, fecha, ${campo})
-          VALUES ($1, $2::date, $3)
-          ON CONFLICT (id_cuenta, fecha) 
-          DO UPDATE SET ${campo} = EXCLUDED.${campo}
-        `;
-        await client.query(upsertQuery, [me.id_cuenta, cambio.fecha, cambio.valor]);
+        // Intentar con ON CONFLICT primero, si falla usar INSERT/UPDATE separado
+        try {
+          const upsertQuery = `
+            INSERT INTO resumenes_diarios_ads (id_cuenta, fecha, ${campo})
+            VALUES ($1, $2::date, $3)
+            ON CONFLICT (id_cuenta, fecha) 
+            DO UPDATE SET ${campo} = EXCLUDED.${campo}
+          `;
+          await client.query(upsertQuery, [me.id_cuenta, cambio.fecha, cambio.valor]);
+        } catch (conflictError) {
+          // Si ON CONFLICT falla (no hay constraint), usar INSERT/UPDATE manual
+          const checkQuery = `SELECT 1 FROM resumenes_diarios_ads WHERE id_cuenta = $1 AND fecha = $2::date`;
+          const checkResult = await client.query(checkQuery, [me.id_cuenta, cambio.fecha]);
+          
+          if (checkResult.rows.length > 0) {
+            // Actualizar
+            const updateQuery = `UPDATE resumenes_diarios_ads SET ${campo} = $3 WHERE id_cuenta = $1 AND fecha = $2::date`;
+            await client.query(updateQuery, [me.id_cuenta, cambio.fecha, cambio.valor]);
+          } else {
+            // Insertar (solo el campo que estamos editando, otros campos quedan NULL)
+            const insertQuery = `INSERT INTO resumenes_diarios_ads (id_cuenta, fecha, ${campo}) VALUES ($1, $2::date, $3)`;
+            await client.query(insertQuery, [me.id_cuenta, cambio.fecha, cambio.valor]);
+          }
+        }
 
         cambiosRegistrados.push({
           fecha: cambio.fecha,
