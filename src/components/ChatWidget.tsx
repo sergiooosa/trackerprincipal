@@ -41,6 +41,9 @@ export default function ChatWidget() {
   });
 
   const canViewChatbot = () => {
+    // Verificar variable de entorno primero
+    if (process.env.NEXT_PUBLIC_CHATBOT_ENABLED !== 'true') return false;
+    
     const me = meQuery.data?.user;
     if (!me) return false;
     if (me.rol === "superadmin") return true;
@@ -55,8 +58,10 @@ export default function ChatWidget() {
     return group.enabled !== false;
   };
 
-  // No renderizar si no tiene permisos o si el chatbot está deshabilitado
-  if (process.env.NEXT_PUBLIC_CHATBOT_ENABLED !== 'true' || !canViewChatbot()) {
+  // Verificar si debe renderizar (después de todos los hooks)
+  const shouldRender = canViewChatbot();
+  
+  if (!shouldRender) {
     return null;
   }
   const [messages, setMessages] = useState<Message[]>([
@@ -157,9 +162,12 @@ export default function ChatWidget() {
     }]);
   };
 
-  // Verificar variable de entorno
-  const isEnabled = process.env.NEXT_PUBLIC_CHATBOT_ENABLED === "true";
-  if (!isEnabled) return null;
+  // Verificar si debe renderizar (después de todos los hooks)
+  const shouldRender = canViewChatbot();
+  
+  if (!shouldRender) {
+    return null;
+  }
 
   // Parsear markdown básico para mostrar negritas y listas
   const renderContent = (content: string) => {

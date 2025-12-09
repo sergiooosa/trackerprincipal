@@ -145,7 +145,7 @@ export async function PATCH(req: NextRequest) {
             DO UPDATE SET ${campo} = EXCLUDED.${campo}
           `;
           await client.query(upsertQuery, [me.id_cuenta, cambio.fecha, cambio.valor]);
-        } catch (conflictError) {
+        } catch {
           // Si ON CONFLICT falla (no hay constraint), usar INSERT/UPDATE manual
           const checkQuery = `SELECT 1 FROM resumenes_diarios_ads WHERE id_cuenta = $1 AND fecha = $2::date`;
           const checkResult = await client.query(checkQuery, [me.id_cuenta, cambio.fecha]);

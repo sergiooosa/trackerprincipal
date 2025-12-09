@@ -289,7 +289,6 @@ function EditAdsMetricModal({
   onClose,
   startDate,
   endDate,
-  clientId,
   onSuccess
 }: {
   campo: 'gasto_total_ad' | 'impresiones_totales' | 'play_rate' | 'engagement' | 'ctr';
@@ -298,20 +297,14 @@ function EditAdsMetricModal({
   onClose: () => void;
   startDate: Date;
   endDate: Date;
-  clientId: string;
+  clientId?: string;
   onSuccess: () => void;
 }) {
   const [datos, setDatos] = useState<Array<{ fecha: string; valor: number }>>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      loadData();
-    }
-  }, [isOpen, campo, startDate, endDate]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
