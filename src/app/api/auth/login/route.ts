@@ -31,6 +31,20 @@ export async function POST(req: NextRequest) {
       console.log(`[Login] Headers - sec-fetch-dest: ${req.headers.get("sec-fetch-dest")}, referer: ${req.headers.get("referer")?.slice(0, 50)}, origin: ${req.headers.get("origin")}`);
       console.log(`[Login] ALLOW_IFRAME env: ${process.env.ALLOW_IFRAME}`);
       
+      // Verificar Set-Cookie header después de attachSessionCookie
+      const setCookieHeader = res.headers.get("set-cookie");
+      console.log(`[Login] Set-Cookie header completo: ${setCookieHeader}`);
+      if (setCookieHeader) {
+        const hasSecure = setCookieHeader.includes("Secure");
+        const hasSameSiteNone = setCookieHeader.includes("SameSite=None");
+        console.log(`[Login] Cookie tiene Secure: ${hasSecure}, SameSite=None: ${hasSameSiteNone}`);
+        if (!hasSecure && hasSameSiteNone) {
+          console.error(`[Login] ⚠️ PROBLEMA: Cookie tiene SameSite=None pero NO tiene Secure!`);
+        }
+      } else {
+        console.error(`[Login] ⚠️ PROBLEMA: No se generó Set-Cookie header!`);
+      }
+      
       // Registrar acción
       try {
         await pool.query(

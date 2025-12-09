@@ -525,8 +525,26 @@ export default function Home() {
                       const loginData = await res.json();
                       console.log("[Login] Login exitoso, respuesta:", loginData);
                       
+                      // Verificar Set-Cookie header en la respuesta
+                      const setCookieHeader = res.headers.get("set-cookie");
+                      console.log("[Login] Set-Cookie header recibido:", setCookieHeader);
+                      
+                      // Esperar un momento para que el navegador procese la cookie
+                      await new Promise(resolve => setTimeout(resolve, 100));
+                      
                       // Verificar cookies después del login
                       console.log("[Login] Cookies después del login:", document.cookie);
+                      const hasSessionToken = document.cookie.includes("session_token");
+                      console.log("[Login] ¿Tiene session_token en cookies?", hasSessionToken);
+                      
+                      if (!hasSessionToken) {
+                        console.error("[Login] ⚠️ PROBLEMA: La cookie no se guardó en el navegador!");
+                        console.error("[Login] Posibles causas:");
+                        console.error("[Login] 1. Navegador bloquea cookies de terceros");
+                        console.error("[Login] 2. ALLOW_IFRAME no está configurado en Vercel");
+                        console.error("[Login] 3. Cookie no tiene Secure cuando SameSite=None");
+                        alert("⚠️ La sesión no se guardó. Revisa la consola para más detalles. Verifica que ALLOW_IFRAME=true esté en Vercel.");
+                      }
                       
                       setOpenLogin(false);
                       
