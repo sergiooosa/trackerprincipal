@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format, formatISO, startOfDay, endOfDay } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -306,15 +306,61 @@ export default function Home() {
   const meQuery = useQuery<{ user: { nombre: string; rol: string; permisos?: Record<string, unknown> } | null }>({
     queryKey: ["me"],
     queryFn: async () => {
+      console.log("[Frontend] Ejecutando queryFn de /api/auth/me");
+      console.log("[Frontend] Cookies antes del fetch:", document.cookie);
+      
       const res = await fetch("/api/auth/me", { 
         cache: "no-store",
         credentials: "include" // CRÍTICO: Incluir cookies en iframes
       });
-      if (!res.ok) throw new Error("No se pudo verificar la sesión");
-      return res.json();
+      
+      console.log("[Frontend] Response status:", res.status);
+      console.log("[Frontend] Response headers:", [...res.headers.entries()]);
+      
+      if (!res.ok) {
+        console.error("[Frontend] Error en /api/auth/me:", res.status, res.statusText);
+        throw new Error("No se pudo verificar la sesión");
+      }
+      
+      const data = await res.json();
+      console.log("[Frontend] Datos recibidos de /api/auth/me:", data);
+      console.log("[Frontend] Usuario encontrado:", !!data.user);
+      
+      return data;
     },
+    refetchOnWindowFocus: true, // Refrescar cuando la ventana recupera el foco
+    refetchOnMount: true, // Refrescar al montar el componente
   });
   const me = meQuery.data?.user ?? null;
+
+  // Efecto para verificar sesión periódicamente cuando está en iframe (GHL)
+  useEffect(() => {
+    const isInIframe = window.self !== window.top;
+    if (!isInIframe) return; // Solo en iframes
+    
+    console.log("[Frontend] Detectado iframe - iniciando verificación periódica de sesión");
+    
+    // Verificar sesión cada 2 segundos si no hay usuario
+    const interval = setInterval(async () => {
+      if (!me) {
+        console.log("[Frontend] Sin sesión detectada, verificando...");
+        const check = await fetch("/api/auth/me", { 
+          credentials: "include",
+          cache: "no-store" 
+        });
+        const data = await check.json();
+        
+        if (data.user) {
+          console.log("[Frontend] ✅ Sesión encontrada en verificación periódica!");
+          queryClient.setQueryData(["me"], data);
+        } else {
+          console.log("[Frontend] ❌ Aún sin sesión");
+        }
+      }
+    }, 2000);
+    
+    return () => clearInterval(interval);
+  }, [me, queryClient]);
 
   // Función auxiliar para verificar permisos
   const canView = (
@@ -468,8 +514,44 @@ export default function Home() {
                         setLoginError(j?.error || res.statusText);
                         return;
                       }
+                      
+                      const loginData = await res.json();
+                      console.log("[Login] Login exitoso, respuesta:", loginData);
+                      
+                      // Verificar cookies después del login
+                      console.log("[Login] Cookies después del login:", document.cookie);
+                      
                       setOpenLogin(false);
-                      queryClient.invalidateQueries({ queryKey: ["me"] });
+                      
+                      // Invalidar y forzar refetch inmediato
+                      await queryClient.invalidateQueries({ queryKey: ["me"] });
+                      
+                      // Esperar un momento y forzar otro refetch (por si acaso)
+                      setTimeout(async () => {
+                        console.log("[Login] Forzando segundo refetch de sesión...");
+                        await queryClient.refetchQueries({ queryKey: ["me"] });
+                        
+                        // Verificar resultado
+                        const meAfterRefetch = queryClient.getQueryData<{ user: { nombre: string } | null }>(["me"]);
+                        console.log("[Login] Estado después del refetch:", meAfterRefetch);
+                        
+                        if (!meAfterRefetch?.user) {
+                          console.warn("[Login] ⚠️ Sesión no detectada después del refetch. Intentando fetch manual...");
+                          // Último intento: fetch manual
+                          const manualCheck = await fetch("/api/auth/me", { 
+                            credentials: "include",
+                            cache: "no-store" 
+                          });
+                          const manualData = await manualCheck.json();
+                          console.log("[Login] Resultado fetch manual:", manualData);
+                          
+                          if (manualData.user) {
+                            // Actualizar manualmente el cache de React Query
+                            queryClient.setQueryData(["me"], manualData);
+                            console.log("[Login] ✅ Sesión actualizada manualmente en cache");
+                          }
+                        }
+                      }, 500);
                     } finally {
                       setLoggingIn(false);
                     }
@@ -719,7 +801,30 @@ export default function Home() {
       {!me ? (
         <div className="bg-neutral-900/60 border border-neutral-800 rounded-xl p-8 text-center">
           <div className="text-xl text-white font-semibold mb-2">Inicia sesión para ver el dashboard</div>
-          <div className="text-neutral-300">Presiona “Iniciar sesión” en la parte superior.</div>
+          <div className="text-neutral-300 mb-4">Presiona "Iniciar sesión" en la parte superior.</div>
+          
+          {/* Debug info solo en desarrollo o si está en iframe */}
+          {(process.env.NODE_ENV === "development" || window.self !== window.top) && (
+            <div className="mt-4 p-4 bg-neutral-950 border border-neutral-700 rounded text-left text-xs text-neutral-400">
+              <div className="font-semibold text-neutral-300 mb-2">🔍 Debug Info:</div>
+              <div>En iframe: {window.self !== window.top ? "Sí" : "No"}</div>
+              <div>Cookies: {document.cookie ? "Presentes" : "No hay cookies"}</div>
+              <div>Session token en cookies: {document.cookie.includes("session_token") ? "✅ Sí" : "❌ No"}</div>
+              <div>Query status: {meQuery.status}</div>
+              <div>Query error: {meQuery.error ? String(meQuery.error) : "Ninguno"}</div>
+              <div className="mt-2">
+                <button
+                  onClick={() => {
+                    console.log("[Debug] Forzando refetch manual...");
+                    queryClient.refetchQueries({ queryKey: ["me"] });
+                  }}
+                  className="px-3 py-1 bg-emerald-600 text-white rounded text-xs hover:bg-emerald-500"
+                >
+                  🔄 Forzar Refetch
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ) : isLoading || isFetching ? (
         <div className="animate-pulse space-y-6">
