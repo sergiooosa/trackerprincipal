@@ -784,7 +784,7 @@ export async function runAgentStep(
 
   // Si hay resultado de herramienta previa
   if (lastToolResult !== undefined) {
-    const result = lastToolResult as { rows?: unknown[]; error?: string; rowCount?: number };
+    const result = lastToolResult as { rows?: unknown[]; error?: string; rowCount?: number; query?: string; fallback?: boolean; noResults?: boolean; message?: string };
     
     // Si hay error, NO dar respuesta genérica - SIEMPRE reintentar
     if (result.error) {
