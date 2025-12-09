@@ -996,14 +996,16 @@ export default function Home() {
             <Card className="bg-gradient-to-br from-[#160e1f] to-[#0e0b19] border border-[#3a214b] shadow-[0_0_0_1px_rgba(168,85,247,0.15),0_10px_40px_-10px_rgba(168,85,247,0.3)]">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-white">Inversión en publicidad</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-neutral-400 hover:text-fuchsia-300 hover:bg-fuchsia-500/10"
-                  onClick={() => setEditModalOpen({ campo: 'gasto_total_ad', titulo: 'Inversión en publicidad' })}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
+                {canAction(me, 'editar_metricas_ads', 'edit') && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-neutral-400 hover:text-fuchsia-300 hover:bg-fuchsia-500/10"
+                    onClick={() => setEditModalOpen({ campo: 'gasto_total_ad', titulo: 'Inversión en publicidad' })}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="text-2xl font-semibold text-fuchsia-300">{currency(data?.kpis?.total_gasto_ads || 0)}</CardContent>
             </Card>
@@ -1012,14 +1014,16 @@ export default function Home() {
             <Card className="bg-gradient-to-br from-[#0b1420] to-[#0a0f18] border border-[#1b2a40] shadow-[0_0_0_1px_rgba(59,130,246,0.12),0_10px_40px_-10px_rgba(59,130,246,0.25)]">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-white">Impresiones</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-neutral-400 hover:text-blue-300 hover:bg-blue-500/10"
-                  onClick={() => setEditModalOpen({ campo: 'impresiones_totales', titulo: 'Impresiones' })}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
+                {canAction(me, 'editar_metricas_ads', 'edit') && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-neutral-400 hover:text-blue-300 hover:bg-blue-500/10"
+                    onClick={() => setEditModalOpen({ campo: 'impresiones_totales', titulo: 'Impresiones' })}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="text-2xl font-semibold text-blue-300">{(data?.kpis?.impresiones ?? 0).toLocaleString()}</CardContent>
             </Card>
@@ -1815,7 +1819,7 @@ export default function Home() {
                                         </Dialog>
                                       </>
                                     )}
-                                    {esNoShow && (
+                                    {esNoShow && canAction(me, 'acciones_llamadas', 'revivir') && (
                                       <Dialog>
                                         <DialogTrigger asChild>
                                           <Button variant="outline" className="bg-neutral-900 border-neutral-800 text-neutral-200 hover:border-emerald-400/40 hover:text-emerald-300">Revivir</Button>
