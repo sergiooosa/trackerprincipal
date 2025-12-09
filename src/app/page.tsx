@@ -323,27 +323,38 @@ export default function Home() {
     if (u.rol === "superadmin") return true;
     
     // Si no tiene permisos definidos (legacy), permitimos ver todo por compatibilidad
-    // O si prefieres bloquear, retorna false. Asumiremos true por ahora.
     if (!u.permisos || Object.keys(u.permisos).length === 0) return true;
 
     // Validar estructura de permisos
     const p = u.permisos as Record<string, { enabled?: boolean; items?: Record<string, boolean> }> | undefined;
-    if (!p) return true; // Si no hay permisos estructurados, permitimos por defecto (legacy)
+    if (!p) return true;
 
     const group = p[section];
     
-    // Si la sección no existe o está deshabilitada globalmente
-    if (!group || group.enabled === false) return false;
+    // Si la sección no existe en los permisos, permitimos por defecto
+    if (!group) return true;
 
     // Si se pide un item específico dentro de la sección
     if (item) {
-      // Si el item no está definido explícitamente, asumimos true si la sección está enabled,
-      // o false si queremos ser estrictos. Según la lógica del admin panel, items son booleanos.
-      return group.items?.[item] === true;
+      // Verificar directamente el estado del item si existe
+      if (group.items && item in group.items) {
+        return group.items[item] === true;
+      }
+      // Si el item no está definido explícitamente, usamos el estado global de la sección
+      return group.enabled !== false;
     }
 
-    // Si solo se pide la sección general
-    return true;
+    // Si solo se pide la sección general (para el contenedor)
+    // Mostramos la sección si: enabled es true, O si hay al menos un item activo
+    if (group.enabled === true) return true;
+    
+    // Aunque enabled sea false (porque no todos están activos), 
+    // mostramos la sección si hay al menos un item activo
+    if (group.items && Object.values(group.items).some(v => v === true)) {
+      return true;
+    }
+    
+    return false;
   };
 
   const { data, isLoading, isError, isFetching, error } = useQuery<ApiResponse>({
