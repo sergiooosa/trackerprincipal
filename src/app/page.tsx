@@ -303,7 +303,7 @@ export default function Home() {
   const [loggingIn, setLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  const meQuery = useQuery<{ user: { nombre: string; rol: string; permisos?: Record<string, any> } | null }>({
+  const meQuery = useQuery<{ user: { nombre: string; rol: string; permisos?: Record<string, unknown> } | null }>({
     queryKey: ["me"],
     queryFn: async () => {
       const res = await fetch("/api/auth/me", { cache: "no-store" });
@@ -326,8 +326,10 @@ export default function Home() {
     // O si prefieres bloquear, retorna false. Asumiremos true por ahora.
     if (!u.permisos || Object.keys(u.permisos).length === 0) return true;
 
-    // Casteamos a any porque la estructura es dinámica en JSONB
-    const p = u.permisos as any;
+    // Validar estructura de permisos
+    const p = u.permisos as Record<string, { enabled?: boolean; items?: Record<string, boolean> }> | undefined;
+    if (!p) return true; // Si no hay permisos estructurados, permitimos por defecto (legacy)
+
     const group = p[section];
     
     // Si la sección no existe o está deshabilitada globalmente
