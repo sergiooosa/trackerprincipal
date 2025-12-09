@@ -278,3 +278,36 @@ Fecha: 2025-12-09
 - Eventos:
   - Al crear llamada, se sincroniza la categoría en `resumenes_diarios_agendas` (registro más reciente por email e id_cuenta).
 
+Fecha: 2025-12-10
+
+- Chatbot "Aura" (Agente IA Avanzado):
+  - **Activación:** `NEXT_PUBLIC_CHATBOT_ENABLED=true` en `.env.local`
+  - **Arquitectura:**
+    - Agente ReAct (Reason + Act) con loop de herramientas
+    - Máximo 3 iteraciones de herramientas por conversación
+    - Fallback: Gemini → OpenAI → mensaje de error amigable
+  - **Herramientas disponibles:**
+    1. `sql_query`: Consultas SELECT a PostgreSQL (solo lectura)
+    2. `generate_excel`: Genera archivos .xlsx descargables
+  - **Capacidades:**
+    - Análisis de `resumen_ia` (evaluaciones forenses de llamadas)
+    - Extracción de objeciones de `objeciones_ia` (JSONB)
+    - Métricas de performance por closer, creativo, período
+    - Comparación con benchmarks del sector (Show Rate >60%, Close Rate >30%)
+    - Generación de reportes personalizados en Excel
+  - **Seguridad:**
+    - Solo queries SELECT/WITH permitidas
+    - Validación de comandos peligrosos (INSERT, UPDATE, DELETE, DROP, etc.)
+    - Filtrado por `id_cuenta` del usuario autenticado
+    - Límite de resultados truncados para no saturar contexto
+  - **UI:**
+    - Widget flotante en esquina inferior derecha
+    - Diseño glassmorphism con gradientes emerald/teal
+    - Sugerencias de preguntas comunes
+    - Soporte para descarga de archivos Excel
+    - Indicador de "analizando" mientras procesa
+  - **Archivos:**
+    - `src/lib/agent.ts`: Lógica del agente y herramientas
+    - `src/app/api/chat/route.ts`: Endpoint POST /api/chat
+    - `src/components/ChatWidget.tsx`: Componente React del widget
+

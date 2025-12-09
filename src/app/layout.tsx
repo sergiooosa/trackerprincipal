@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
+import ChatWidget from "@/components/ChatWidget";
 
 const clientName = process.env.NEXT_PUBLIC_CLIENT_NAME || "Cliente";
 
@@ -37,6 +38,7 @@ export default function RootLayout({
           </div>
         </div>
         <Providers>{children}</Providers>
+        <ChatWidget />
       </body>
     </html>
   );
