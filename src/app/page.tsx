@@ -488,123 +488,124 @@ export default function Home() {
               </div>
             </PopoverContent>
           </Popover>
-          <Dialog open={openCreate} onOpenChange={setOpenCreate}>
-            <DialogTrigger asChild>
-              <Button className="bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-600/30 hover:text-emerald-200">
-                ➕ Agregar llamada
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[820px] bg-neutral-950 border-neutral-800 text-neutral-100 mx-4">
-              <DialogHeader>
-                <DialogTitle>Agregar llamada</DialogTitle>
-              </DialogHeader>
-              <form
-                className="space-y-4"
-                onSubmit={async (ev) => {
-                  ev.preventDefault();
-                  if (isCreating) return;
-                  const form = ev.currentTarget as HTMLFormElement;
-                  const fd = new FormData(form);
-                  const payload = {
-                    id_cuenta: clientId,
-                    tz: timezone,
-                    fecha_evento_local: String(fd.get("fecha_evento_local") || ""),
-                    closer: String(fd.get("closer") || "").trim(),
-                    correo_closer: String(fd.get("correo_closer") || "").trim(),
-                    cliente: String(fd.get("cliente") || "").trim(),
-                    email_lead: String(fd.get("email_lead") || "").trim(),
-                    categoria: String(fd.get("categoria") || "").toLowerCase(),
-                    cash_collected: Number(fd.get("cash_collected") || 0),
-                    facturacion: Number(fd.get("facturacion") || 0),
-                    anuncio_origen: String(fd.get("anuncio_origen") || "").toLowerCase(),
-                    link_llamada: String(fd.get("link_llamada") || ""),
-                    transcripcion: String(fd.get("transcripcion") || ""),
-                  };
-                  // Validaciones simples en cliente
-                  for (const [k, v] of Object.entries(payload)) {
-                    if (v === "" || v === null || (typeof v === "number" && Number.isNaN(v))) {
-                      alert(`Campo requerido faltante o inválido: ${k}`);
-                      return;
+          {me && (
+            <Dialog open={openCreate} onOpenChange={setOpenCreate}>
+              <DialogTrigger asChild>
+                <Button className="bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-600/30 hover:text-emerald-200">
+                  ➕ Agregar llamada
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[820px] bg-neutral-950 border-neutral-800 text-neutral-100 mx-4">
+                <DialogHeader>
+                  <DialogTitle>Agregar llamada</DialogTitle>
+                </DialogHeader>
+                <form
+                  className="space-y-4"
+                  onSubmit={async (ev) => {
+                    ev.preventDefault();
+                    if (isCreating) return;
+                    const form = ev.currentTarget as HTMLFormElement;
+                    const fd = new FormData(form);
+                    const payload = {
+                      id_cuenta: clientId,
+                      tz: timezone,
+                      fecha_evento_local: String(fd.get("fecha_evento_local") || ""),
+                      closer: String(fd.get("closer") || "").trim(),
+                      correo_closer: String(fd.get("correo_closer") || "").trim(),
+                      cliente: String(fd.get("cliente") || "").trim(),
+                      email_lead: String(fd.get("email_lead") || "").trim(),
+                      categoria: String(fd.get("categoria") || "").toLowerCase(),
+                      cash_collected: Number(fd.get("cash_collected") || 0),
+                      facturacion: Number(fd.get("facturacion") || 0),
+                      anuncio_origen: String(fd.get("anuncio_origen") || "").toLowerCase(),
+                      link_llamada: String(fd.get("link_llamada") || ""),
+                      transcripcion: String(fd.get("transcripcion") || ""),
+                    };
+                    for (const [k, v] of Object.entries(payload)) {
+                      if (v === "" || v === null || (typeof v === "number" && Number.isNaN(v))) {
+                        alert(`Campo requerido faltante o inválido: ${k}`);
+                        return;
+                      }
                     }
-                  }
-                  try {
-                    setIsCreating(true);
-                    const res = await fetch("/api/eventos", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify(payload),
-                    });
-                    if (!res.ok) {
-                      const msg = await res.json().catch(() => ({}));
-                      alert(`Error creando llamada: ${msg?.error || res.statusText}`);
-                      return;
+                    try {
+                      setIsCreating(true);
+                      const res = await fetch("/api/eventos", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload),
+                      });
+                      if (!res.ok) {
+                        const msg = await res.json().catch(() => ({}));
+                        alert(`Error creando llamada: ${msg?.error || res.statusText}`);
+                        return;
+                      }
+                      setOpenCreate(false);
+                      (document.activeElement as HTMLElement | null)?.blur();
+                      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+                    } finally {
+                      setIsCreating(false);
                     }
-                    setOpenCreate(false);
-                    (document.activeElement as HTMLElement | null)?.blur();
-                    queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-                  } finally {
-                    setIsCreating(false);
-                  }
-                }}
-              >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm text-neutral-300">Nombre del lead</label>
-                    <Input name="cliente" required className="mt-1" />
+                  }}
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm text-neutral-300">Nombre del lead</label>
+                      <Input name="cliente" required className="mt-1" />
+                    </div>
+                    <div>
+                      <label className="text-sm text-neutral-300">Email del lead</label>
+                      <Input name="email_lead" type="email" required className="mt-1" />
+                    </div>
+                    <div>
+                      <label className="text-sm text-neutral-300">Fecha y hora del evento ({timezone})</label>
+                      <Input name="fecha_evento_local" type="datetime-local" required className="mt-1" />
+                    </div>
+                    <div>
+                      <label className="text-sm text-neutral-300">Closer</label>
+                      <Input name="closer" required className="mt-1" />
+                    </div>
+                    <div>
+                      <label className="text-sm text-neutral-300">Correo del closer</label>
+                      <Input name="correo_closer" type="email" required className="mt-1" />
+                    </div>
+                    <div>
+                      <label className="text-sm text-neutral-300">Categoría</label>
+                      <select name="categoria" required className="w-full mt-1 bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm">
+                        <option value="ofertada">Ofertada</option>
+                        <option value="no_ofertada">No_ofertada</option>
+                        <option value="cerrada">Cerrada</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm text-neutral-300">Cash collected</label>
+                      <Input name="cash_collected" type="number" step="0.01" min="0" required className="mt-1" />
+                    </div>
+                    <div>
+                      <label className="text-sm text-neutral-300">Facturación</label>
+                      <Input name="facturacion" type="number" step="0.01" min="0" required className="mt-1" />
+                    </div>
+                    <div>
+                      <label className="text-sm text-neutral-300">Anuncio origen</label>
+                      <Input name="anuncio_origen" required className="mt-1" placeholder="exactamente como en Meta, en minúscula o &quot;no&quot;" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-sm text-neutral-300">Link de la llamada</label>
+                      <Input name="link_llamada" required className="mt-1" placeholder="pega el link o escribe algo si no tienes" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <div className="text-xs text-neutral-400 mb-1">Si no la tienes solo escribe &quot;no&quot;</div>
+                      <textarea name="transcripcion" required className="w-full h-40 bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm" />
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-sm text-neutral-300">Email del lead</label>
-                    <Input name="email_lead" type="email" required className="mt-1" />
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button disabled={isCreating} type="submit" className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                      {isCreating ? "Analizando con IA..." : "Guardar"}
+                    </Button>
                   </div>
-                  <div>
-                    <label className="text-sm text-neutral-300">Fecha y hora del evento ({timezone})</label>
-                    <Input name="fecha_evento_local" type="datetime-local" required className="mt-1" />
-                  </div>
-                  <div>
-                    <label className="text-sm text-neutral-300">Closer</label>
-                    <Input name="closer" required className="mt-1" />
-                  </div>
-                  <div>
-                    <label className="text-sm text-neutral-300">Correo del closer</label>
-                    <Input name="correo_closer" type="email" required className="mt-1" />
-                  </div>
-                  <div>
-                    <label className="text-sm text-neutral-300">Categoría</label>
-                    <select name="categoria" required className="w-full mt-1 bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm">
-                      <option value="ofertada">Ofertada</option>
-                      <option value="no_ofertada">No_ofertada</option>
-                      <option value="cerrada">Cerrada</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-sm text-neutral-300">Cash collected</label>
-                    <Input name="cash_collected" type="number" step="0.01" min="0" required className="mt-1" />
-                  </div>
-                  <div>
-                    <label className="text-sm text-neutral-300">Facturación</label>
-                    <Input name="facturacion" type="number" step="0.01" min="0" required className="mt-1" />
-                  </div>
-                  <div>
-                    <label className="text-sm text-neutral-300">Anuncio origen</label>
-                    <Input name="anuncio_origen" required className="mt-1" placeholder="exactamente como en Meta, en minúscula o &quot;no&quot;" />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="text-sm text-neutral-300">Link de la llamada</label>
-                    <Input name="link_llamada" required className="mt-1" placeholder="pega el link o escribe algo si no tienes" />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <div className="text-xs text-neutral-400 mb-1">Si no la tienes solo escribe &quot;no&quot;</div>
-                    <textarea name="transcripcion" required className="w-full h-40 bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm" />
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button disabled={isCreating} type="submit" className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed">
-                    {isCreating ? "Analizando con IA..." : "Guardar"}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
           <Button
             onClick={() => {
               if (!dataset) return;

@@ -18,6 +18,11 @@ function isNumberLike(n: unknown): n is number {
 export async function POST(req: NextRequest) {
   const client = await pool.connect();
   try {
+    // Requiere sesión activa
+    const me = await readSession(req);
+    if (!me) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
     const body = await req.json();
     const required = [
       "id_registro_agenda",

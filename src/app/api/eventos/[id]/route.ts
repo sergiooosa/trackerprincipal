@@ -9,6 +9,11 @@ type PatchBody = {
 };
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  // Requiere sesión activa
+  const me = await readSession(req);
+  if (!me) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
   const { id } = await ctx.params;
 
   if (!id) {
@@ -95,6 +100,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  // Requiere sesión activa
+  const me = await readSession(req);
+  if (!me) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
   const { id } = await ctx.params;
   if (!id) {
     return NextResponse.json({ error: "Falta id del evento" }, { status: 400 });
