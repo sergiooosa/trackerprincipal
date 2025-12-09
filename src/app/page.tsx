@@ -1050,14 +1050,16 @@ export default function Home() {
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-white">VSL PLAY RATE %</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-neutral-400 hover:text-emerald-300 hover:bg-emerald-500/10"
-                  onClick={() => setEditModalOpen({ campo: 'play_rate', titulo: 'VSL PLAY RATE %' })}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
+                {canAction(me, 'editar_metricas_ads', 'edit') && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-neutral-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                    onClick={() => setEditModalOpen({ campo: 'play_rate', titulo: 'VSL PLAY RATE %' })}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="text-2xl font-semibold text-emerald-300">{Number(data?.kpis?.vsl_play_rate ?? 0).toFixed(1)}%</CardContent>
             </Card>
@@ -1066,14 +1068,16 @@ export default function Home() {
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-white">VSL ENGAGEMENT %</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-neutral-400 hover:text-emerald-300 hover:bg-emerald-500/10"
-                  onClick={() => setEditModalOpen({ campo: 'engagement', titulo: 'VSL ENGAGEMENT %' })}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
+                {canAction(me, 'editar_metricas_ads', 'edit') && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-neutral-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                    onClick={() => setEditModalOpen({ campo: 'engagement', titulo: 'VSL ENGAGEMENT %' })}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="text-2xl font-semibold text-emerald-300">{Number(data?.kpis?.vsl_engagement ?? 0).toFixed(1)}%</CardContent>
             </Card>
