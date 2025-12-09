@@ -801,7 +801,7 @@ export default function Home() {
       {!me ? (
         <div className="bg-neutral-900/60 border border-neutral-800 rounded-xl p-8 text-center">
           <div className="text-xl text-white font-semibold mb-2">Inicia sesión para ver el dashboard</div>
-          <div className="text-neutral-300 mb-4">Presiona "Iniciar sesión" en la parte superior.</div>
+          <div className="text-neutral-300 mb-4">Presiona &quot;Iniciar sesión&quot; en la parte superior.</div>
           
           {/* Debug info solo en desarrollo o si está en iframe */}
           {(process.env.NODE_ENV === "development" || window.self !== window.top) && (
