@@ -65,16 +65,25 @@ export function attachSessionCookie(
   const isProd = process.env.NODE_ENV === "production";
   const maxAge = remember ? THIRTY_DAYS_SECONDS : ONE_DAY_SECONDS;
   
-  // Detectar si está en un iframe o contexto embebido
+  // Si ALLOW_IFRAME está activado, SIEMPRE usar configuración para iframes
+  // Esto es necesario porque los headers pueden no estar presentes en todos los navegadores
+  const allowIframe = process.env.ALLOW_IFRAME === "true";
+  
+  // Detectar si está en un iframe (como fallback adicional)
   const isEmbedded = 
-    process.env.ALLOW_IFRAME === "true" ||
+    allowIframe ||
     req?.headers.get("sec-fetch-dest") === "iframe" ||
-    req?.headers.get("x-frame-options") !== null;
+    req?.headers.get("referer")?.includes("leadconnectorhq.com") ||
+    req?.headers.get("origin")?.includes("leadconnectorhq.com");
   
   // Si está embebido, usar sameSite: "none" y secure: true (requisito del navegador)
   // Si no está embebido, usar sameSite: "lax" para mejor seguridad
   const sameSite = isEmbedded ? ("none" as const) : ("lax" as const);
-  const secure = isEmbedded ? true : isProd; // En iframes siempre secure: true
+  // En iframes siempre secure: true (requisito del navegador para sameSite: none)
+  // En producción normal también secure: true
+  const secure = isEmbedded ? true : isProd;
+  
+  console.log(`[Auth] Setting cookie - sameSite: ${sameSite}, secure: ${secure}, allowIframe: ${allowIframe}, isEmbedded: ${isEmbedded}`);
   
   res.cookies.set({
     name: COOKIE_NAME,
@@ -88,10 +97,12 @@ export function attachSessionCookie(
 }
 
 export function clearSessionCookie(res: NextResponse, req?: NextRequest) {
+  const allowIframe = process.env.ALLOW_IFRAME === "true";
   const isEmbedded = 
-    process.env.ALLOW_IFRAME === "true" ||
+    allowIframe ||
     req?.headers.get("sec-fetch-dest") === "iframe" ||
-    req?.headers.get("x-frame-options") !== null;
+    req?.headers.get("referer")?.includes("leadconnectorhq.com") ||
+    req?.headers.get("origin")?.includes("leadconnectorhq.com");
   
   const sameSite = isEmbedded ? ("none" as const) : ("lax" as const);
   const secure = isEmbedded ? true : (process.env.NODE_ENV === "production");

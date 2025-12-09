@@ -26,6 +26,11 @@ export async function POST(req: NextRequest) {
       const token = await createSession(user, remember);
       const res = NextResponse.json({ ok: true, user });
       attachSessionCookie(res, token, remember, req);
+      
+      // Debug: verificar headers de la request
+      console.log(`[Login] Headers - sec-fetch-dest: ${req.headers.get("sec-fetch-dest")}, referer: ${req.headers.get("referer")?.slice(0, 50)}, origin: ${req.headers.get("origin")}`);
+      console.log(`[Login] ALLOW_IFRAME env: ${process.env.ALLOW_IFRAME}`);
+      
       // Registrar acción
       try {
         await pool.query(
