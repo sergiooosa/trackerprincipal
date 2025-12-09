@@ -12,15 +12,12 @@ type UserRow = {
   id_cuenta: number;
   nombre: string;
   rol: "superadmin" | "usuario";
-  permisos?: Record<string, unknown> | null;
+  permisos?: PermissionsState | null; // Tipado más específico
   fathom?: string | null;
   id_webhook_fathom?: string | null;
 };
 
 // --- Configuración de Métricas ---
-
-// Estructura de permisos plana para el estado, luego se puede anidar en UI
-// Para cumplir con: "si se desactiva una de abajo el general se pone off", usamos la lógica de "todos activos = padre activo".
 
 type PermissionGroupState = {
   enabled: boolean;
@@ -185,23 +182,47 @@ export default function UsuariosAdmin() {
   const [error, setError] = useState<string | null>(null);
   const [rolSel, setRolSel] = useState<"usuario" | "superadmin">("usuario");
   const [openCreate, setOpenCreate] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   
   const [permisos, setPermisos] = useState<PermissionsState>(INITIAL_PERMISOS);
 
-  // Reiniciar estado al abrir modal
+  // Cargar datos al abrir modal
   useEffect(() => {
     if (openCreate) {
-      setPermisos(INITIAL_PERMISOS);
-      setRolSel("usuario");
-      setError(null);
+      if (editingUser) {
+        // Modo Edición
+        setRolSel(editingUser.rol);
+        setError(null);
+        if (editingUser.rol === 'usuario' && editingUser.permisos) {
+          // Fusionar permisos guardados con la estructura actual (para no romper si hay nuevos items)
+          const merged = { ...INITIAL_PERMISOS };
+          // Deep merge simple para los 4 grupos
+          (['tarjetas', 'graficas', 'adquisicion', 'leaderboard'] as const).forEach(key => {
+            const savedGroup = editingUser.permisos?.[key];
+            if (savedGroup) {
+              merged[key] = {
+                enabled: savedGroup.enabled ?? true,
+                items: { ...merged[key].items, ...savedGroup.items }
+              };
+            }
+          });
+          setPermisos(merged);
+        } else {
+          setPermisos(INITIAL_PERMISOS);
+        }
+      } else {
+        // Modo Creación (Reset)
+        setPermisos(INITIAL_PERMISOS);
+        setRolSel("usuario");
+        setError(null);
+      }
     }
-  }, [openCreate]);
+  }, [openCreate, editingUser]);
 
   const handleGroupChange = (groupKey: keyof PermissionsState, val: boolean) => {
     setPermisos((prev) => {
       const group = prev[groupKey];
       const newItems = { ...group.items };
-      // Si activo padre -> todos true. Si desactivo padre -> todos false.
       Object.keys(newItems).forEach((k) => (newItems[k] = val));
       return {
         ...prev,
@@ -214,17 +235,22 @@ export default function UsuariosAdmin() {
     setPermisos((prev) => {
       const group = prev[groupKey];
       const newItems = { ...group.items, [itemKey]: val };
-      // Padre se activa SOLO si todos los hijos están activos (o lógica personalizada)
-      // Requerimiento: "si se desactiva una de abajo el general se pone en off"
-      // Requerimiento: "si la general está en on pues debes de ponerlas todas" (ya cubierto en handleGroupChange)
-      
       const allTrue = Object.values(newItems).every((v) => v === true);
-      
       return {
         ...prev,
         [groupKey]: { enabled: allTrue, items: newItems },
       };
     });
+  };
+
+  const handleOpenCreate = () => {
+    setEditingUser(null);
+    setOpenCreate(true);
+  };
+
+  const handleOpenEdit = (user: UserRow) => {
+    setEditingUser(user);
+    setOpenCreate(true);
   };
 
   return (
@@ -234,13 +260,16 @@ export default function UsuariosAdmin() {
         <div className="flex items-center gap-2">
           <Dialog open={openCreate} onOpenChange={setOpenCreate}>
             <DialogTrigger asChild>
-              <Button className="bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-600/30 hover:text-emerald-200">
+              <Button 
+                onClick={handleOpenCreate}
+                className="bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-600/30 hover:text-emerald-200"
+              >
                 ➕ Agregar usuario
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[700px] bg-neutral-950 border-neutral-800 text-neutral-100 mx-4 max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Agregar nuevo usuario</DialogTitle>
+                <DialogTitle>{editingUser ? "Editar usuario" : "Agregar nuevo usuario"}</DialogTitle>
               </DialogHeader>
               <form
                 className="space-y-6 pt-4"
@@ -249,20 +278,41 @@ export default function UsuariosAdmin() {
                   if (creating) return;
                   setError(null);
                   const fd = new FormData(ev.currentTarget as HTMLFormElement);
+                  const passVal = String(fd.get("pass") || "").trim();
+                  
+                  // Validación: pass requerido solo al crear
+                  if (!editingUser && !passVal) {
+                    setError("La contraseña es obligatoria al crear.");
+                    return;
+                  }
+
                   const payload = {
                     nombre: String(fd.get("nombre") || "").trim(),
-                    pass: String(fd.get("pass") || "").trim(),
+                    pass: passVal || undefined, // undefined para no enviar si está vacío en edit
                     rol: rolSel,
                     permisos: rolSel === "superadmin" ? {} : permisos,
                     fathom_api_key: String(fd.get("fathom_api_key") || "").trim(),
                   };
+
                   try {
                     setCreating(true);
-                    const res = await fetch("/api/usuarios", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify(payload),
-                    });
+                    let res;
+                    if (editingUser) {
+                      // UPDATE
+                      res = await fetch(`/api/usuarios/${editingUser.id_evento}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload),
+                      });
+                    } else {
+                      // CREATE
+                      res = await fetch("/api/usuarios", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload),
+                      });
+                    }
+
                     if (!res.ok) {
                       const j = await res.json().catch(() => ({}));
                       setError(j?.error || res.statusText);
@@ -278,11 +328,25 @@ export default function UsuariosAdmin() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm text-neutral-400 font-medium mb-1 block">Nombre</label>
-                    <Input name="nombre" required className="bg-neutral-900 border-neutral-800" placeholder="Ej. Juan Perez" />
+                    <Input 
+                      name="nombre" 
+                      required 
+                      className="bg-neutral-900 border-neutral-800" 
+                      placeholder="Ej. Juan Perez"
+                      defaultValue={editingUser?.nombre || ""} 
+                    />
                   </div>
                   <div>
-                    <label className="text-sm text-neutral-400 font-medium mb-1 block">Contraseña</label>
-                    <Input name="pass" type="password" required className="bg-neutral-900 border-neutral-800" placeholder="••••••••" />
+                    <label className="text-sm text-neutral-400 font-medium mb-1 block">
+                      {editingUser ? "Nueva Contraseña (opcional)" : "Contraseña"}
+                    </label>
+                    <Input 
+                      name="pass" 
+                      type="password" 
+                      required={!editingUser} // Solo requerida al crear
+                      className="bg-neutral-900 border-neutral-800" 
+                      placeholder={editingUser ? "Dejar vacío para mantener" : "••••••••"} 
+                    />
                   </div>
                   <div>
                     <label className="text-sm text-neutral-400 font-medium mb-1 block">Rol</label>
@@ -298,7 +362,12 @@ export default function UsuariosAdmin() {
                   </div>
                   <div>
                     <label className="text-sm text-neutral-400 font-medium mb-1 block">Fathom API Key (Opcional)</label>
-                    <Input name="fathom_api_key" className="bg-neutral-900 border-neutral-800" placeholder="sk_..." />
+                    <Input 
+                      name="fathom_api_key" 
+                      className="bg-neutral-900 border-neutral-800" 
+                      placeholder="sk_..."
+                      defaultValue={editingUser?.fathom || ""} 
+                    />
                   </div>
                 </div>
 
@@ -353,7 +422,7 @@ export default function UsuariosAdmin() {
                     Cancelar
                   </Button>
                   <Button disabled={creating} type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white min-w-[120px]">
-                    {creating ? "Guardando..." : "Guardar Usuario"}
+                    {creating ? "Guardando..." : (editingUser ? "Guardar Cambios" : "Crear Usuario")}
                   </Button>
                 </div>
               </form>
@@ -416,22 +485,32 @@ export default function UsuariosAdmin() {
                       )}
                     </td>
                     <td className="py-3 px-4 text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-400 hover:text-red-300 hover:bg-red-950/30 h-8"
-                        onClick={async () => {
-                          if (!confirm(`¿Eliminar usuario "${u.nombre}" permanentemente?`)) return;
-                          const res = await fetch(`/api/usuarios/${u.id_evento}`, { method: "DELETE" });
-                          if (!res.ok) {
-                            alert("No se pudo eliminar");
-                            return;
-                          }
-                          qc.invalidateQueries({ queryKey: ["admin-users"] });
-                        }}
-                      >
-                        Eliminar
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-950/30 h-8"
+                          onClick={() => handleOpenEdit(u)}
+                        >
+                          Editar
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-400 hover:text-red-300 hover:bg-red-950/30 h-8"
+                          onClick={async () => {
+                            if (!confirm(`¿Eliminar usuario "${u.nombre}" permanentemente?`)) return;
+                            const res = await fetch(`/api/usuarios/${u.id_evento}`, { method: "DELETE" });
+                            if (!res.ok) {
+                              alert("No se pudo eliminar");
+                              return;
+                            }
+                            qc.invalidateQueries({ queryKey: ["admin-users"] });
+                          }}
+                        >
+                          Eliminar
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
