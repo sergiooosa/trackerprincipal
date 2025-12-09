@@ -87,9 +87,6 @@ export function attachSessionCookie(
   // El navegador rechaza cookies con sameSite="none" si secure no es true
   const finalSecure = (sameSite === "none") ? true : secure;
   
-  console.log(`[Auth] Setting cookie - name: ${COOKIE_NAME}, sameSite: ${sameSite}, secure: ${finalSecure}, allowIframe: ${allowIframe}, isEmbedded: ${isEmbedded}, isProd: ${isProd}`);
-  console.log(`[Auth] Cookie config - maxAge: ${maxAge}, path: /, httpOnly: true`);
-  
   res.cookies.set({
     name: COOKIE_NAME,
     value: token,
@@ -99,16 +96,6 @@ export function attachSessionCookie(
     maxAge: maxAge,
     path: "/",
   });
-  
-  // Verificar que se guardó correctamente leyendo el header Set-Cookie
-  const setCookieHeader = res.headers.get("set-cookie");
-  if (setCookieHeader) {
-    console.log(`[Auth] Set-Cookie header generado: ${setCookieHeader.substring(0, 300)}`);
-    // Verificar que contiene Secure si sameSite es none
-    if (sameSite === "none" && !setCookieHeader.includes("Secure")) {
-      console.error(`[Auth] ERROR CRÍTICO: Cookie con sameSite=None no tiene flag Secure!`);
-    }
-  }
 }
 
 export function clearSessionCookie(res: NextResponse, req?: NextRequest) {
