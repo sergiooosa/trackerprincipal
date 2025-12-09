@@ -281,6 +281,154 @@ function currency(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value || 0);
 }
 
+// Componente para editar métricas diarias de ads
+function EditAdsMetricModal({
+  campo,
+  titulo,
+  isOpen,
+  onClose,
+  startDate,
+  endDate,
+  clientId,
+  onSuccess
+}: {
+  campo: 'gasto_total_ad' | 'impresiones_totales' | 'play_rate' | 'engagement';
+  titulo: string;
+  isOpen: boolean;
+  onClose: () => void;
+  startDate: Date;
+  endDate: Date;
+  clientId: string;
+  onSuccess: () => void;
+}) {
+  const [datos, setDatos] = useState<Array<{ fecha: string; valor: number }>>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadData();
+    }
+  }, [isOpen, campo, startDate, endDate]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        fecha_inicio: formatISO(startOfDay(startDate)),
+        fecha_fin: formatISO(endOfDay(endDate)),
+        campo: campo
+      });
+      const res = await fetch(`/api/ads-daily?${params.toString()}`, {
+        credentials: "include"
+      });
+      if (!res.ok) throw new Error("Error al cargar datos");
+      const json = await res.json();
+      setDatos(json.datos || []);
+    } catch (error) {
+      console.error("Error loading data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const cambios = datos.filter(d => d.valor !== null && d.valor !== undefined);
+      const res = await fetch("/api/ads-daily", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ campo, cambios }),
+        credentials: "include"
+      });
+      if (!res.ok) throw new Error("Error al guardar");
+      onSuccess();
+      onClose();
+    } catch (error) {
+      console.error("Error saving:", error);
+      alert("Error al guardar los cambios");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateValor = (fecha: string, nuevoValor: number) => {
+    setDatos(prev => prev.map(d => 
+      d.fecha === fecha ? { ...d, valor: nuevoValor } : d
+    ));
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-neutral-950 border-neutral-800">
+        <DialogHeader>
+          <DialogTitle className="text-white text-xl">Editar {titulo}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          {loading ? (
+            <div className="text-center py-8 text-neutral-400">Cargando datos...</div>
+          ) : datos.length === 0 ? (
+            <div className="text-center py-8 text-neutral-400">
+              No hay datos para el rango seleccionado
+            </div>
+          ) : (
+            <>
+              <div className="text-sm text-neutral-400 mb-4">
+                Rango: {format(startDate, "dd/MM/yyyy")} - {format(endDate, "dd/MM/yyyy")}
+              </div>
+              <div className="border border-neutral-800 rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-neutral-900/50 border-b border-neutral-800">
+                      <TableHead className="text-neutral-300">Fecha</TableHead>
+                      <TableHead className="text-neutral-300">Valor</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {datos.map((dato, idx) => (
+                      <TableRow key={idx} className="border-b border-neutral-800/50 hover:bg-neutral-900/30">
+                        <TableCell className="text-neutral-200">
+                          {format(new Date(dato.fecha), "dd/MM/yyyy")}
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            step={campo === 'gasto_total_ad' || campo === 'impresiones_totales' ? '1' : '0.01'}
+                            value={dato.valor ?? 0}
+                            onChange={(e) => updateValor(dato.fecha, parseFloat(e.target.value) || 0)}
+                            className="bg-neutral-900 border-neutral-700 text-white w-32"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={onClose}
+                  className="bg-neutral-900 border-neutral-700 text-neutral-200 hover:bg-neutral-800"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  {saving ? "Guardando..." : "Guardar cambios"}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Datos de demo eliminados: ya no se usan.
 
 export default function Home() {
@@ -1706,7 +1854,7 @@ export default function Home() {
               endDate={endDate}
               clientId={clientId}
               onSuccess={() => {
-                queryClient.invalidateQueries(["dashboard"]);
+                queryClient.invalidateQueries({ queryKey: ["dashboard"] });
               }}
             />
           )}
