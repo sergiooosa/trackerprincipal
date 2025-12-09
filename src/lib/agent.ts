@@ -831,8 +831,12 @@ LIMIT 20;`;
       
       // Si pregunta por show rate y hay error, dar query específica
       if (lastUserMsg?.toLowerCase().includes("show rate") || lastUserMsg?.toLowerCase().includes("showrate")) {
-        const desdeFecha = effectiveDateRange.start;
-        const hastaFecha = effectiveDateRange.end;
+        const dateRange = defaultDateRange || {
+          start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          end: new Date().toISOString().split('T')[0]
+        };
+        const desdeFecha = dateRange.start;
+        const hastaFecha = dateRange.end;
         const showRateQuery = `SELECT 
   COUNT(*) FILTER (
     WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada')
