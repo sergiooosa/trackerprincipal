@@ -104,23 +104,15 @@ export async function PATCH(req: NextRequest) {
         
         const valorAnterior = selectResult.rows[0]?.valor_anterior ?? 0;
 
-        // Si el registro no existe, crearlo
-        if (selectResult.rows.length === 0) {
-          const insertQuery = `
-            INSERT INTO resumenes_diarios_ads (id_cuenta, fecha, ${campo})
-            VALUES ($1, $2::date, $3)
-            ON CONFLICT (id_cuenta, fecha) DO UPDATE SET ${campo} = $3
-          `;
-          await client.query(insertQuery, [me.id_cuenta, cambio.fecha, cambio.valor]);
-        } else {
-          // Actualizar registro existente
-          const updateQuery = `
-            UPDATE resumenes_diarios_ads
-            SET ${campo} = $3
-            WHERE id_cuenta = $1 AND fecha = $2::date
-          `;
-          await client.query(updateQuery, [me.id_cuenta, cambio.fecha, cambio.valor]);
-        }
+        // Usar UPSERT: INSERT si no existe, UPDATE si existe
+        // Asumimos que hay un constraint único en (id_cuenta, fecha) o usamos ON CONFLICT
+        const upsertQuery = `
+          INSERT INTO resumenes_diarios_ads (id_cuenta, fecha, ${campo})
+          VALUES ($1, $2::date, $3)
+          ON CONFLICT (id_cuenta, fecha) 
+          DO UPDATE SET ${campo} = EXCLUDED.${campo}
+        `;
+        await client.query(upsertQuery, [me.id_cuenta, cambio.fecha, cambio.valor]);
 
         cambiosRegistrados.push({
           fecha: cambio.fecha,
