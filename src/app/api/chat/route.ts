@@ -13,7 +13,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { messages } = body as { messages: AgentMessage[] };
+    const { messages, dateRange } = body as { 
+      messages: AgentMessage[]; 
+      dateRange?: { start: string; end: string };
+    };
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json({ error: "Formato de mensajes inválido" }, { status: 400 });
@@ -30,11 +33,21 @@ export async function POST(req: NextRequest) {
     // Obtener zona horaria del cliente (server-side desde env)
     const timezone = process.env.NEXT_PUBLIC_CLIENT_TIMEZONE || "America/Bogota";
 
+    // Parsear rango de fechas del dashboard si está disponible
+    let defaultDateRange: { start: string; end: string } | undefined;
+    if (dateRange?.start && dateRange?.end) {
+      defaultDateRange = {
+        start: dateRange.start,
+        end: dateRange.end
+      };
+      console.log(`[Aura API] Rango de fechas del dashboard: ${defaultDateRange.start} a ${defaultDateRange.end}`);
+    }
+
     // Limitar historial para no saturar el contexto
     const recentHistory = messages.slice(-20);
 
-    // Ejecutar paso del agente con zona horaria
-    let result = await runAgentStep(recentHistory, me.id_cuenta, timezone);
+    // Ejecutar paso del agente con zona horaria y rango de fechas por defecto
+    let result = await runAgentStep(recentHistory, me.id_cuenta, timezone, undefined, defaultDateRange);
     let iterations = 0;
 
     // Loop de herramientas con límite
@@ -60,7 +73,8 @@ export async function POST(req: NextRequest) {
             [...recentHistory, { role: "model", content: "", toolCall: tool }],
             me.id_cuenta,
             timezone,
-            { error: sqlResult.error }
+            { error: sqlResult.error },
+            defaultDateRange
           );
         } else {
           // ═══════════════════════════════════════════════════════════════════
@@ -120,7 +134,8 @@ export async function POST(req: NextRequest) {
                   query: query,
                   fallback: true,
                   message: "No encontré resultados con la búsqueda específica. Aquí están todos los registros recientes (últimos 60 días). Analiza estos datos y encuentra coincidencias con los nombres mencionados por el usuario."
-                }
+                },
+                defaultDateRange
               );
             } else {
               // Ni siquiera hay registros recientes
@@ -134,7 +149,8 @@ export async function POST(req: NextRequest) {
                   query: query,
                   noResults: true,
                   message: "No encontré resultados en los últimos 60 días. Sugiere al usuario que amplíe el rango de tiempo o verifique los nombres."
-                }
+                },
+                defaultDateRange
               );
             }
           } else {
@@ -147,7 +163,8 @@ export async function POST(req: NextRequest) {
                 rows: rows,
                 rowCount: rowCount,
                 query: query
-              }
+              },
+              defaultDateRange
             );
           }
         }

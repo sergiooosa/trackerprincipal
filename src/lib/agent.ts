@@ -78,8 +78,11 @@ const BUSINESS_RULES = `
    - Agendas Efectivas = Total - PDTE - Cancelada
    - BENCHMARK: >60% es bueno, <40% es crítico
 
-2. **Close Rate** = (Cierres / Calificadas) × 100
-   - Calificadas = categorias IN ('Ofertada','Cerrada')
+2. **Close Rate** = (Cierres / Agendas) × 100
+   - **CRÍTICO**: El dashboard calcula close_rate_pct = (cierres / agendas) * 100
+   - Cierres = categorias = 'cerrada' desde eventos_llamadas_tiempo_real
+   - Agendas = total de agendas desde resumenes_diarios_agendas (sin filtrar por categoria)
+   - **NO usar** reuniones_calificadas como denominador para close rate
    - BENCHMARK: >30% es excelente, <15% requiere atención
 
 3. **CAC** = Gasto Total Ads / Número de Cierres
@@ -141,11 +144,15 @@ Trabajas para una agencia que gestiona embudos de venta con llamadas de cierre.
 
 ## INTERPRETACIÓN DE FECHAS DEL USUARIO
 Cuando el usuario dice:
-- "desde el 1 de diciembre hasta el 7 de diciembre" → WHERE fecha >= '2024-12-01' AND fecha <= '2024-12-07'
+- "desde el 1 de diciembre hasta el 7 de diciembre" → Si NO menciona año, usar AÑO ACTUAL ({YEAR})
+- "del 3 al 9" → Interpretar como "del 3 al 9" del mes actual o del rango seleccionado
+- "del 3 de diciembre al 9 de diciembre" → Si NO menciona año, usar AÑO ACTUAL ({YEAR})
 - "la semana pasada" → >= CURRENT_DATE - INTERVAL '14 days' AND < CURRENT_DATE - INTERVAL '7 days'
 - "este mes" → >= DATE_TRUNC('month', CURRENT_DATE)
 - "ayer" → = CURRENT_DATE - INTERVAL '1 day'
-- Si menciona fechas específicas, ÚSALAS EXACTAMENTE
+- Si menciona fechas específicas CON año, ÚSALAS EXACTAMENTE
+- Si menciona fechas SIN año, usar AÑO ACTUAL ({YEAR}) o el rango del dashboard si está disponible
+- **CRÍTICO**: Si el usuario corrige el año (ej: "me refiero del 3 de diciembre al 9 de diciembre del 2025"), usar ese año exacto
 
 ## TU PERSONALIDAD
 - Proactiva: No solo respondes, anticipas necesidades
@@ -704,12 +711,35 @@ export async function runAgentStep(
   history: AgentMessage[], 
   idCuenta: number,
   timezone: string = "America/Bogota",
-  lastToolResult?: unknown
+  lastToolResult?: unknown,
+  defaultDateRange?: { start: string; end: string }
 ): Promise<AgentStepResult> {
   // Construir el prompt con contexto actual
-  const systemWithContext = SYSTEM_PROMPT.replace(/{ID_ACTUAL}/g, String(idCuenta))
+  let systemWithContext = SYSTEM_PROMPT.replace(/{ID_ACTUAL}/g, String(idCuenta))
     .replace(/{ID}/g, String(idCuenta))
     .replace(/{TIMEZONE}/g, timezone);
+  
+  // Agregar contexto de rango de fechas por defecto si está disponible
+  const currentYear = new Date().getFullYear();
+  if (defaultDateRange) {
+    const startDate = new Date(defaultDateRange.start);
+    const endDate = new Date(defaultDateRange.end);
+    const startFormatted = startDate.toISOString().split('T')[0];
+    const endFormatted = endDate.toISOString().split('T')[0];
+    systemWithContext += `\n\n## 📅 RANGO DE FECHAS POR DEFECTO DEL DASHBOARD\n`;
+    systemWithContext += `El usuario tiene seleccionado en el dashboard el rango: ${startFormatted} a ${endFormatted}\n`;
+    systemWithContext += `Si el usuario NO especifica fechas en su pregunta, usa ESTE rango por defecto.\n`;
+    systemWithContext += `Si el usuario menciona fechas específicas (ej: "del 3 al 9"), intenta inferir el mes y año:\n`;
+    systemWithContext += `- Si menciona el mes (ej: "del 3 de diciembre al 9 de diciembre"), usa ese mes con el AÑO ACTUAL (${currentYear}) a menos que especifique otro año\n`;
+    systemWithContext += `- Si NO menciona el mes, intenta inferirlo del contexto o pregunta al usuario\n`;
+    systemWithContext += `- Si el usuario corrige (ej: "me refiero del 3 de diciembre al 9 de diciembre del 2025"), usa ese año exacto\n`;
+  } else {
+    systemWithContext += `\n\n## 📅 AÑO ACTUAL\n`;
+    systemWithContext += `El año actual es ${currentYear}. Si el usuario menciona fechas sin año (ej: "del 3 al 9"), asume el año ${currentYear}.\n`;
+  }
+  
+  // Reemplazar {YEAR} en el prompt
+  systemWithContext = systemWithContext.replace(/{YEAR}/g, String(currentYear));
 
   // Serializar historial
   let conversationText = "";
@@ -814,8 +844,23 @@ LIMIT 20;`;
         conversationText += `- Analiza el campo "resumen_corto" o "resumen_ia" para contexto adicional\n`;
         conversationText += `- Proporciona recomendaciones ESPECÍFICAS basadas en los datos REALES, NO genéricas\n`;
         conversationText += `- Si hay datos de "reportmarketing", úsalos para recomendaciones de anuncios\n`;
+      } else if (lastUserMsg?.toLowerCase().includes("llamada") && lastUserMsg?.toLowerCase().includes("cuales")) {
+        conversationText += `\n**CRÍTICO - LISTAR TODAS LAS LLAMADAS:**\n`;
+        conversationText += `- El usuario pregunta "cuáles son" las llamadas\n`;
+        conversationText += `- DEBES mostrar TODAS las llamadas encontradas, NO solo algunas\n`;
+        conversationText += `- Si hay ${result.rowCount || 0} llamadas, muestra las ${result.rowCount || 0}\n`;
+        conversationText += `- Lista cada llamada con: fecha, cliente, closer, categoría, facturación, cash_collected\n`;
+        conversationText += `- Si hay resumen_ia, objeciones_ia o reportmarketing, inclúyelos también\n`;
+      } else if (lastUserMsg?.toLowerCase().includes("close rate") || lastUserMsg?.toLowerCase().includes("tasa de cierre")) {
+        conversationText += `\n**CRÍTICO - CÁLCULO DE CLOSE RATE:**\n`;
+        conversationText += `- Close Rate = (Cierres / Agendas) × 100\n`;
+        conversationText += `- Cierres = COUNT de eventos_llamadas_tiempo_real WHERE categoria = 'cerrada'\n`;
+        conversationText += `- Agendas = COUNT de resumenes_diarios_agendas (TODAS, sin filtrar por categoria)\n`;
+        conversationText += `- NO uses reuniones_calificadas como denominador\n`;
+        conversationText += `- Asegúrate de usar el mismo cálculo que el dashboard\n`;
       } else {
         conversationText += `\nAhora analiza estos datos y responde al usuario de forma clara y útil.\n`;
+        conversationText += `**RECURSIVIDAD**: Si no encuentras la respuesta en una columna (ej: resumen_ia), busca en las otras (objeciones_ia, reportmarketing).\n`;
       }
     }
   }

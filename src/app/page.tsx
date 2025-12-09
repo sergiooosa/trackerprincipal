@@ -2,6 +2,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format, formatISO, startOfDay, endOfDay } from "date-fns";
+import { useDateRange } from "@/contexts/DateRangeContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -288,10 +289,16 @@ export default function Home() {
   const defaultEnd = endOfDay(today);
   const [startDate, setStartDate] = useState<Date>(defaultStart);
   const [endDate, setEndDate] = useState<Date>(defaultEnd);
+  const { setDateRange } = useDateRange();
   const [closerFilter, setCloserFilter] = useState<Record<string, string>>({});
   const [closerStatusFilter, setCloserStatusFilter] = useState<Record<string, string>>({});
   const [creativoFilter, setCreativoFilter] = useState<string>("");
   const [adquisicionOpen, setAdquisicionOpen] = useState<boolean>(true);
+  
+  // Sincronizar fechas con el contexto para el ChatWidget
+  useEffect(() => {
+    setDateRange(startDate, endDate);
+  }, [startDate, endDate, setDateRange]);
 
   // Configuración del cliente desde variables de entorno
   const clientId = process.env.NEXT_PUBLIC_CLIENT_ID || "2";

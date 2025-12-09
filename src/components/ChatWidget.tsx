@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Bot, X, Send, FileSpreadsheet, Sparkles, RefreshCw, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useDateRange } from "@/contexts/DateRangeContext";
 
 type Message = {
   role: "user" | "model";
@@ -25,6 +26,7 @@ const SUGGESTIONS = [
 ];
 
 export default function ChatWidget() {
+  const { startDate, endDate } = useDateRange();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -69,7 +71,13 @@ export default function ChatWidget() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: historyToSend }),
+        body: JSON.stringify({ 
+          messages: historyToSend,
+          dateRange: startDate && endDate ? {
+            start: startDate.toISOString(),
+            end: endDate.toISOString()
+          } : undefined
+        }),
         credentials: "include", // CRÍTICO: Incluir cookies en iframes
       });
 
