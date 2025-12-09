@@ -124,9 +124,10 @@ Cuando recibes una pregunta, sigue este proceso mental:
 
 **PASO 1 - ENTENDER**: ¿Qué quiere realmente saber el usuario?
 - Si pregunta "cómo vamos", quiere un resumen ejecutivo
-- Si pregunta por "objeciones", busca en resumen_ia o objeciones_ia
-- Si pide "mejorar", necesita diagnóstico + recomendaciones
+- Si pregunta por "objeciones", busca en objeciones_ia (JSONB) y resumen_ia (TEXT) - SIEMPRE traer datos reales
+- Si pide "mejorar" o "qué ads debería sacar", necesita análisis de objeciones + reportmarketing + recomendaciones basadas en datos
 - Si pregunta por una llamada específica (ej: "llamada de raul con blas"), busca en eventos_llamadas_tiempo_real
+- **CRÍTICO**: NUNCA dar respuestas genéricas. SIEMPRE consultar datos reales primero. Si falla, reintentar con query diferente.
 
 **PASO 2 - PLANIFICAR**: ¿Qué datos necesito?
 - Identificar las tablas relevantes
@@ -214,10 +215,54 @@ FROM eventos_llamadas_tiempo_real
 WHERE id_cuenta = {ID} AND LOWER(cliente) ILIKE '%nombre%'
 ORDER BY fecha_hora_evento DESC LIMIT 1;
 
-### Objeciones más frecuentes (analizando resumen_ia)
-SELECT closer, cliente, resumen_ia FROM eventos_llamadas_tiempo_real
-WHERE id_cuenta = {ID} AND resumen_ia IS NOT NULL AND resumen_ia != ''
-ORDER BY fecha_hora_evento DESC LIMIT 10;
+### ⭐ Objeciones más frecuentes (desde objeciones_ia JSONB)
+-- CRÍTICO: objeciones_ia es JSONB con estructura {"objeciones": ["objeción 1", "objeción 2", ...]}
+-- Extraer todas las objeciones y contar frecuencia
+SELECT 
+  jsonb_array_elements_text(objeciones_ia->'objeciones') as objeccion,
+  COUNT(*) as frecuencia
+FROM eventos_llamadas_tiempo_real
+WHERE id_cuenta = {ID}
+  AND objeciones_ia IS NOT NULL
+  AND objeciones_ia != 'null'::jsonb
+  AND (fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::date >= CURRENT_DATE - INTERVAL '90 days'
+GROUP BY jsonb_array_elements_text(objeciones_ia->'objeciones')
+ORDER BY frecuencia DESC
+LIMIT 20;
+
+### ⭐ Análisis completo de objeciones (objeciones_ia + resumen_ia)
+-- Traer TODOS los resúmenes para análisis profundo con IA
+-- Limitar a últimos 90 días para no colapsar, pero traer suficientes datos
+SELECT 
+  id_evento,
+  cliente,
+  closer,
+  categoria,
+  (fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::date as fecha,
+  objeciones_ia,
+  LEFT(resumen_ia, 500) as resumen_corto -- Primeros 500 chars para contexto
+FROM eventos_llamadas_tiempo_real
+WHERE id_cuenta = {ID}
+  AND (
+    (objeciones_ia IS NOT NULL AND objeciones_ia != 'null'::jsonb)
+    OR (resumen_ia IS NOT NULL AND resumen_ia != '')
+  )
+  AND (fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::date >= CURRENT_DATE - INTERVAL '90 days'
+ORDER BY fecha_hora_evento DESC
+LIMIT 100; -- Suficiente para análisis pero no colapsar
+
+### ⭐ Objeciones por categoría de llamada
+SELECT 
+  categoria,
+  jsonb_array_elements_text(objeciones_ia->'objeciones') as objeccion,
+  COUNT(*) as frecuencia
+FROM eventos_llamadas_tiempo_real
+WHERE id_cuenta = {ID}
+  AND objeciones_ia IS NOT NULL
+  AND objeciones_ia != 'null'::jsonb
+  AND (fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::date >= CURRENT_DATE - INTERVAL '90 days'
+GROUP BY categoria, jsonb_array_elements_text(objeciones_ia->'objeciones')
+ORDER BY frecuencia DESC;
 
 ### ⭐ Anuncio ganador (por VENTAS/ROAS, NO por agendas)
 -- CRÍTICO: El "anuncio ganador" se determina por VENTAS o ROAS, NO por número de agendas
@@ -459,6 +504,26 @@ LIMIT 1;
 - El mayor porcentaje de no-shows es el peor
 - Ordenar por no_show_rate DESC
 
+### 📊 ANÁLISIS DE OBJECIONES Y RECOMENDACIONES DE ADS
+
+#### ¿Cuáles son las objeciones más comunes?
+**Lógica CRÍTICA**:
+- Usar `objeciones_ia` (JSONB) que tiene estructura: `{"objeciones": ["objeción 1", "objeción 2"]}`
+- Extraer con `jsonb_array_elements_text(objeciones_ia->'objeciones')`
+- Contar frecuencia de cada objección
+- Agrupar objeciones similares (ej: "precio alto" = "muy caro" = "no tengo dinero")
+- Analizar también `resumen_ia` para contexto adicional
+- **SIEMPRE traer datos reales, NUNCA dar respuestas genéricas**
+
+#### ¿Qué clase de ads debería sacar según el perfil de mi cliente?
+**Lógica CRÍTICA**:
+- Analizar `reportmarketing` de eventos_llamadas_tiempo_real (contiene análisis de marketing)
+- Analizar `objeciones_ia` para entender qué objeciones son más comunes
+- Analizar `resumen_ia` para entender el perfil del cliente
+- Correlacionar objeciones con `anuncio_origen` para ver qué ads generan qué objeciones
+- **SIEMPRE basar recomendaciones en datos REALES, NO genéricas**
+- Si falla la query, reintentar con query diferente (ej: traer reportmarketing + objeciones juntos)
+
 ### 💰 MÉTRICAS FINANCIERAS
 
 #### ¿Cuál es mi ROAS de la última semana?
@@ -512,6 +577,13 @@ LIMIT 1;
 **NUNCA combines explicación + tool call en la misma respuesta.**
 - MAL: "Voy a consultar los datos..." seguido de tool call
 - BIEN: Tool call JSON directamente, sin texto previo
+
+**REGLA CRÍTICA: SIEMPRE REINTENTAR SI FALLA**
+- Si una query falla con error, NO des respuestas genéricas
+- SIEMPRE genera una nueva query corregida
+- Si no sabes qué columna usar, consulta el esquema de BD en el contexto
+- Para objeciones: usa objeciones_ia (JSONB) y resumen_ia (TEXT)
+- Para recomendaciones de ads: analiza reportmarketing y objeciones juntos
 `;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -583,19 +655,81 @@ export async function runAgentStep(
     console.error(`[Aura] ERROR: No se encontraron mensajes del usuario en el historial`);
   }
 
+  // Última pregunta del usuario (declarar antes de usarla)
+  const lastUserMsg = userMessages[userMessages.length - 1];
+
   // Si hay resultado de herramienta previa
   if (lastToolResult !== undefined) {
-    const resultStr = JSON.stringify(lastToolResult, null, 2);
-    // Truncar si es muy largo para no saturar el contexto
-    const truncated = resultStr.length > 15000 
-      ? resultStr.slice(0, 15000) + "\n... [RESULTADO TRUNCADO - " + resultStr.length + " caracteres totales]"
-      : resultStr;
-    conversationText += `\n**RESULTADO DE LA HERRAMIENTA:**\n\`\`\`json\n${truncated}\n\`\`\`\n`;
-    conversationText += `\nAhora analiza estos datos y responde al usuario de forma clara y útil.\n`;
+    const result = lastToolResult as { rows?: unknown[]; error?: string; rowCount?: number };
+    
+    // Si hay error, NO dar respuesta genérica - SIEMPRE reintentar
+    if (result.error) {
+      console.log(`[Aura] ⚠️ Error en tool result: ${result.error}. Forzando reintento.`);
+      
+      // Analizar el error y generar query corregida
+      const errorLower = result.error.toLowerCase();
+      let correctedQuery = "";
+      
+      if (errorLower.includes("columna") || errorLower.includes("column")) {
+        // Error de columna - usar query alternativa
+        if (lastUserMsg?.toLowerCase().includes("objeción") || lastUserMsg?.toLowerCase().includes("objeciones")) {
+          correctedQuery = `SELECT 
+  jsonb_array_elements_text(objeciones_ia->'objeciones') as objeccion,
+  COUNT(*) as frecuencia
+FROM eventos_llamadas_tiempo_real
+WHERE id_cuenta = ${idCuenta}
+  AND objeciones_ia IS NOT NULL
+  AND objeciones_ia != 'null'::jsonb
+  AND (fecha_hora_evento AT TIME ZONE '${timezone}')::date >= CURRENT_DATE - INTERVAL '90 days'
+GROUP BY jsonb_array_elements_text(objeciones_ia->'objeciones')
+ORDER BY frecuencia DESC
+LIMIT 20;`;
+        }
+      }
+      
+      // Si tenemos query corregida, ejecutarla automáticamente
+      if (correctedQuery) {
+        console.log(`[Aura] 🔄 Reintentando con query corregida automáticamente.`);
+        return {
+          toolCall: {
+            name: "sql_query",
+            args: {
+              query: correctedQuery,
+              explanation: "Query corregida automáticamente después de error"
+            }
+          }
+        };
+      }
+      
+      // Si no hay query corregida, agregar instrucción para reintentar
+      conversationText += `\n**ERROR EN HERRAMIENTA PREVIA:** ${result.error}\n`;
+      conversationText += `\n⚠️ CRÍTICO: Hubo un error. DEBES generar una nueva query corregida. NO des respuestas genéricas. SIEMPRE intenta de nuevo con una query diferente que use las columnas correctas.\n`;
+    } else {
+      // Resultado exitoso - procesar normalmente
+      const resultStr = JSON.stringify(lastToolResult, null, 2);
+      // Para análisis de objeciones, permitir más datos (hasta 30000 chars)
+      const maxLength = lastUserMsg?.toLowerCase().includes("objeción") ? 30000 : 15000;
+      const truncated = resultStr.length > maxLength 
+        ? resultStr.slice(0, maxLength) + "\n... [RESULTADO TRUNCADO - " + resultStr.length + " caracteres totales]"
+        : resultStr;
+      conversationText += `\n**RESULTADO DE LA HERRAMIENTA:**\n\`\`\`json\n${truncated}\n\`\`\`\n`;
+      
+      // Instrucciones especiales para análisis de objeciones
+      if (lastUserMsg?.toLowerCase().includes("objeción") || lastUserMsg?.toLowerCase().includes("objeciones")) {
+        conversationText += `\n**ANÁLISIS REQUERIDO:**\n`;
+        conversationText += `- Extrae TODAS las objeciones del campo "objeccion" (si viene de jsonb_array_elements_text)\n`;
+        conversationText += `- Cuenta la frecuencia de cada objección\n`;
+        conversationText += `- Agrupa objeciones similares (ej: "precio alto" y "muy caro" son similares)\n`;
+        conversationText += `- Analiza el campo "resumen_corto" o "resumen_ia" para contexto adicional\n`;
+        conversationText += `- Proporciona recomendaciones ESPECÍFICAS basadas en los datos REALES, NO genéricas\n`;
+        conversationText += `- Si hay datos de "reportmarketing", úsalos para recomendaciones de anuncios\n`;
+      } else {
+        conversationText += `\nAhora analiza estos datos y responde al usuario de forma clara y útil.\n`;
+      }
+    }
   }
 
-  // Última pregunta del usuario (SIEMPRE incluirla si existe)
-  const lastUserMsg = userMessages[userMessages.length - 1];
+  // Última pregunta del usuario (ya declarada arriba)
   if (lastUserMsg) {
     // Si ya está en el historial, no duplicar, pero asegurar que esté visible
     if (!conversationText.includes(lastUserMsg)) {
@@ -703,12 +837,40 @@ IMPORTANTE:
   if (hasToolIntent && !lastToolResult) {
     console.log(`[Aura] ⚠️ Detectada intención de tool call pero no se generó JSON. Forzando ejecución inmediata.`);
     
-    // Analizar qué tipo de query necesita basándose en el contexto
-    let suggestedQuery = "";
-    const lastUserMsgLower = lastUserMsg?.toLowerCase() || "";
-    
-    // Detectar tipo de pregunta y generar query sugerida
-    if (lastUserMsgLower.includes("roas")) {
+        // Analizar qué tipo de query necesita basándose en el contexto
+        let suggestedQuery = "";
+        const lastUserMsgLower = lastUserMsg?.toLowerCase() || "";
+        
+        // Detectar tipo de pregunta y generar query sugerida
+        if (lastUserMsgLower.includes("objeción") || lastUserMsgLower.includes("objeciones")) {
+          suggestedQuery = `SELECT 
+  jsonb_array_elements_text(objeciones_ia->'objeciones') as objeccion,
+  COUNT(*) as frecuencia
+FROM eventos_llamadas_tiempo_real
+WHERE id_cuenta = ${idCuenta}
+  AND objeciones_ia IS NOT NULL
+  AND objeciones_ia != 'null'::jsonb
+  AND (fecha_hora_evento AT TIME ZONE '${timezone}')::date >= CURRENT_DATE - INTERVAL '90 days'
+GROUP BY jsonb_array_elements_text(objeciones_ia->'objeciones')
+ORDER BY frecuencia DESC
+LIMIT 20;`;
+        } else if (lastUserMsgLower.includes("ads") && (lastUserMsgLower.includes("debería") || lastUserMsgLower.includes("recomendación"))) {
+          suggestedQuery = `SELECT 
+  anuncio_origen,
+  jsonb_array_elements_text(objeciones_ia->'objeciones') as objeccion,
+  LEFT(reportmarketing, 300) as reportmarketing_corto,
+  LEFT(resumen_ia, 300) as resumen_corto,
+  categoria
+FROM eventos_llamadas_tiempo_real
+WHERE id_cuenta = ${idCuenta}
+  AND (
+    (objeciones_ia IS NOT NULL AND objeciones_ia != 'null'::jsonb)
+    OR (reportmarketing IS NOT NULL AND reportmarketing != '')
+  )
+  AND (fecha_hora_evento AT TIME ZONE '${timezone}')::date >= CURRENT_DATE - INTERVAL '90 days'
+ORDER BY fecha_hora_evento DESC
+LIMIT 100;`;
+        } else if (lastUserMsgLower.includes("roas")) {
       suggestedQuery = `SELECT 
   COALESCE(SUM(a.gasto_total_ad), 0) as gasto_total,
   COALESCE(SUM(e.facturacion), 0) as facturacion_total,
