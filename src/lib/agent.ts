@@ -73,9 +73,12 @@ Métricas por creativo individual.
 const BUSINESS_RULES = `
 ## FÓRMULAS Y KPIs CLAVE
 
-1. **Show Rate** = (Asistidas / Agendas Efectivas) × 100
-   - Asistidas = categorias IN ('Cerrada','Ofertada','No_Ofertada')
-   - Agendas Efectivas = Total - PDTE - Cancelada
+1. **Show Rate** = (Asistidas / Total Esperado) × 100
+   - **CRÍTICO**: El dashboard calcula show_rate usando resumenes_diarios_agendas con fecha_de_la_reunion
+   - Numerador (Asistidas): categorias IN ('cerrada','ofertada','no_ofertada') desde resumenes_diarios_agendas
+   - Denominador (Total Esperado): categorias IN ('cerrada','ofertada','no_ofertada','no_show') desde resumenes_diarios_agendas
+   - Filtrar por fecha_de_la_reunion (NO por fecha de agendamiento)
+   - Fórmula exacta: (asistieron / total_esperado) * 100
    - BENCHMARK: >60% es bueno, <40% es crítico
 
 2. **Close Rate** = (Cierres / Agendas) × 100
@@ -834,6 +837,11 @@ LIMIT 20;`;
         ? resultStr.slice(0, maxLength) + "\n... [RESULTADO TRUNCADO - " + resultStr.length + " caracteres totales]"
         : resultStr;
       conversationText += `\n**RESULTADO DE LA HERRAMIENTA:**\n\`\`\`json\n${truncated}\n\`\`\`\n`;
+      
+      // Guardar la query usada para referencia futura
+      if (result.query) {
+        conversationText += `\n**QUERY EJECUTADA:**\n\`\`\`sql\n${result.query}\n\`\`\`\n`;
+      }
 
       // Instrucciones especiales para análisis de objeciones
       if (lastUserMsg?.toLowerCase().includes("objeción") || lastUserMsg?.toLowerCase().includes("objeciones")) {
@@ -858,6 +866,22 @@ LIMIT 20;`;
         conversationText += `- Agendas = COUNT de resumenes_diarios_agendas (TODAS, sin filtrar por categoria)\n`;
         conversationText += `- NO uses reuniones_calificadas como denominador\n`;
         conversationText += `- Asegúrate de usar el mismo cálculo que el dashboard\n`;
+      } else if (lastUserMsg?.toLowerCase().includes("show rate") || lastUserMsg?.toLowerCase().includes("showrate")) {
+        conversationText += `\n**CRÍTICO - CÁLCULO DE SHOW RATE:**\n`;
+        conversationText += `- Show Rate = (Asistidas / Total Esperado) × 100\n`;
+        conversationText += `- Asistidas = COUNT de resumenes_diarios_agendas WHERE categoria IN ('cerrada','ofertada','no_ofertada')\n`;
+        conversationText += `- Total Esperado = COUNT de resumenes_diarios_agendas WHERE categoria IN ('cerrada','ofertada','no_ofertada','no_show')\n`;
+        conversationText += `- **CRÍTICO**: Filtrar por fecha_de_la_reunion (NO por fecha de agendamiento)\n`;
+        conversationText += `- Usar LOWER(TRIM(COALESCE(categoria, ''))) para comparar\n`;
+        conversationText += `- Esta es la MISMA fórmula que usa el dashboard\n`;
+      } else if (lastUserMsg?.toLowerCase().includes("datos") && (lastUserMsg?.toLowerCase().includes("basaste") || lastUserMsg?.toLowerCase().includes("basas"))) {
+        conversationText += `\n**CRÍTICO - EXPLICAR DATOS USADOS:**\n`;
+        conversationText += `El usuario pregunta por los datos en los que te basaste. DEBES:\n`;
+        conversationText += `- Mencionar la query SQL exacta que ejecutaste (está arriba en "QUERY EJECUTADA")\n`;
+        conversationText += `- Explicar el rango de fechas usado\n`;
+        conversationText += `- Mostrar los números exactos del resultado (asistieron, total_esperado, etc.)\n`;
+        conversationText += `- Explicar la operación matemática paso a paso\n`;
+        conversationText += `- NO inventes datos, usa SOLO los que están en el resultado de la herramienta\n`;
       } else {
         conversationText += `\nAhora analiza estos datos y responde al usuario de forma clara y útil.\n`;
         conversationText += `**RECURSIVIDAD**: Si no encuentras la respuesta en una columna (ej: resumen_ia), busca en las otras (objeciones_ia, reportmarketing).\n`;
@@ -1174,6 +1198,65 @@ CROSS JOIN agendas_periodo a;`;
 FROM eventos_llamadas_tiempo_real
 WHERE id_cuenta = ${idCuenta}
   AND (fecha_hora_evento AT TIME ZONE '${timezone}')::date >= CURRENT_DATE - INTERVAL '7 days';`;
+    } else if (lastUserMsgLower.includes("show rate") || lastUserMsgLower.includes("showrate")) {
+      // Show Rate = (Asistidas / Total Esperado) × 100 - FÓRMULA EXACTA DEL DASHBOARD
+      // Extraer fechas si las menciona
+      const currentYear = new Date().getFullYear();
+      let dateFilter = `(("fecha de la reunion" AT TIME ZONE '${timezone}')::date) >= CURRENT_DATE - INTERVAL '7 days'`;
+      
+      // Detectar "del X al Y de [mes]"
+      const datePattern = /del?\s*(\d{1,2})\s*(?:al|al\s*)?(\d{1,2})?\s*(?:de\s*)?(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)?/i;
+      const dateMatch = lastUserMsg?.match(datePattern);
+      
+      if (dateMatch) {
+        const day1 = parseInt(dateMatch[1]);
+        const day2 = dateMatch[2] ? parseInt(dateMatch[2]) : day1;
+        const monthName = dateMatch[3]?.toLowerCase();
+        
+        if (monthName) {
+          const monthMap: Record<string, number> = {
+            'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4, 'mayo': 5, 'junio': 6,
+            'julio': 7, 'agosto': 8, 'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
+          };
+          const month = monthMap[monthName];
+          if (month) {
+            const startDate = `${currentYear}-${String(month).padStart(2, '0')}-${String(day1).padStart(2, '0')}`;
+            const endDate = `${currentYear}-${String(month).padStart(2, '0')}-${String(day2).padStart(2, '0')}`;
+            dateFilter = `(("fecha de la reunion" AT TIME ZONE '${timezone}')::date) BETWEEN '${startDate}' AND '${endDate}'`;
+          }
+        }
+      } else if (lastUserMsgLower.includes("última semana") || lastUserMsgLower.includes("ultima semana")) {
+        dateFilter = `(("fecha de la reunion" AT TIME ZONE '${timezone}')::date) >= CURRENT_DATE - INTERVAL '7 days'`;
+      } else if (lastUserMsgLower.includes("este mes")) {
+        dateFilter = `(("fecha de la reunion" AT TIME ZONE '${timezone}')::date) >= DATE_TRUNC('month', CURRENT_DATE)`;
+      } else if (lastUserMsgLower.includes("últimos 30 días") || lastUserMsgLower.includes("ultimos 30 dias")) {
+        dateFilter = `(("fecha de la reunion" AT TIME ZONE '${timezone}')::date) >= CURRENT_DATE - INTERVAL '30 days'`;
+      }
+      
+      suggestedQuery = `SELECT 
+  COUNT(*) FILTER (
+    WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada')
+  ) AS asistieron,
+  COUNT(*) FILTER (
+    WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada','no_show')
+  ) AS total_esperado,
+  CASE 
+    WHEN COUNT(*) FILTER (
+      WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada','no_show')
+    ) = 0 
+    THEN 0 
+    ELSE ROUND((
+      COUNT(*) FILTER (
+        WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada')
+      )::numeric / 
+      COUNT(*) FILTER (
+        WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada','no_show')
+      )
+    ) * 100, 1)
+  END as show_rate_real
+FROM resumenes_diarios_agendas
+WHERE id_cuenta = ${idCuenta}
+  AND ${dateFilter};`;
     } else if (lastUserMsgLower.includes("anuncio") || lastUserMsgLower.includes("creativo") || lastUserMsgLower.includes("ganador")) {
       suggestedQuery = `SELECT 
   LOWER(TRIM(anuncio_origen)) as creativo,
