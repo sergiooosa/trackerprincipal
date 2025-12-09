@@ -1139,6 +1139,32 @@ WHERE id_cuenta = ${idCuenta}
   AND (fecha_hora_evento AT TIME ZONE '${timezone}')::date >= CURRENT_DATE - INTERVAL '7 days'
 GROUP BY closer
 ORDER BY cierres DESC;`;
+    } else if (lastUserMsgLower.includes("close rate") || lastUserMsgLower.includes("tasa de cierre")) {
+      // Close Rate = (Cierres / Agendas) × 100 (igual que el dashboard)
+      suggestedQuery = `WITH eventos_periodo AS (
+  SELECT 
+    COUNT(*) FILTER (WHERE LOWER(TRIM(categoria)) = 'cerrada') as cierres
+  FROM eventos_llamadas_tiempo_real
+  WHERE id_cuenta = ${idCuenta}
+    AND (fecha_hora_evento AT TIME ZONE '${timezone}')::date >= CURRENT_DATE - INTERVAL '7 days'
+),
+agendas_periodo AS (
+  SELECT 
+    COUNT(*) as total_agendas
+  FROM resumenes_diarios_agendas
+  WHERE id_cuenta = ${idCuenta}
+    AND fecha >= CURRENT_DATE - INTERVAL '7 days'
+)
+SELECT 
+  COALESCE(e.cierres, 0) as cierres,
+  COALESCE(a.total_agendas, 0) as agendas,
+  CASE 
+    WHEN COALESCE(a.total_agendas, 0) > 0 
+    THEN ROUND((COALESCE(e.cierres, 0)::numeric / a.total_agendas) * 100, 1)
+    ELSE 0
+  END as close_rate_pct
+FROM eventos_periodo e
+CROSS JOIN agendas_periodo a;`;
     } else if (lastUserMsgLower.includes("venta") || lastUserMsgLower.includes("factur")) {
       suggestedQuery = `SELECT 
   COUNT(*) as total_llamadas,
