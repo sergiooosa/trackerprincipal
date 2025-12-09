@@ -119,7 +119,7 @@ export function clearSessionCookie(res: NextResponse, req?: NextRequest) {
     req?.headers.get("referer")?.includes("leadconnectorhq.com") ||
     req?.headers.get("origin")?.includes("leadconnectorhq.com");
   
-  const allowIframe = process.env.ALLOW_IFRAME === "true";
+  // Si ALLOW_IFRAME está activado, SIEMPRE usar sameSite: "none" y secure: true
   const sameSite = allowIframe ? ("none" as const) : (isEmbedded ? ("none" as const) : ("lax" as const));
   const secure = allowIframe ? true : (isEmbedded ? true : (process.env.NODE_ENV === "production"));
   
