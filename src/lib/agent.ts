@@ -168,7 +168,10 @@ Para usarlo, responde SOLO con este JSON:
 
 ### ⭐ Buscar llamada específica por nombre de lead y/o closer
 -- IMPORTANTE: Usar ILIKE con % para búsquedas flexibles (ignora mayúsculas/acentos parcialmente)
-SELECT id_evento, fecha_hora_evento, cliente, closer, categoria, 
+-- SIEMPRE usar zona horaria del cliente para fechas
+SELECT id_evento, 
+       (fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::timestamp as fecha_local,
+       cliente, closer, categoria, 
        cash_collected, facturacion, resumen_ia, link_llamada
 FROM eventos_llamadas_tiempo_real
 WHERE id_cuenta = {ID} 
@@ -177,10 +180,14 @@ WHERE id_cuenta = {ID}
 ORDER BY fecha_hora_evento DESC LIMIT 5;
 
 ### ⭐ Ver todas las llamadas recientes (para explorar)
-SELECT id_evento, fecha_hora_evento, cliente, closer, categoria, facturacion
+-- Úsalo cuando la búsqueda específica no encuentre resultados
+SELECT id_evento, 
+       (fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::timestamp as fecha_local,
+       cliente, closer, categoria, facturacion, resumen_ia
 FROM eventos_llamadas_tiempo_real
 WHERE id_cuenta = {ID}
-ORDER BY fecha_hora_evento DESC LIMIT 20;
+  AND (fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::date >= CURRENT_DATE - INTERVAL '60 days'
+ORDER BY fecha_hora_evento DESC LIMIT 50;
 
 ### Resumen de performance por closer (últimos 30 días)
 SELECT closer,
@@ -213,9 +220,11 @@ GROUP BY 1 ORDER BY asistieron DESC;
 
 ## TIPS IMPORTANTES PARA BÚSQUEDAS
 - **Siempre usa ILIKE con %** para nombres: ILIKE '%nombre%' (no = 'nombre')
-- **Considera variaciones con acentos**: raul, raúl, Raúl
+- **Considera variaciones con acentos**: raul, raúl, Raúl, RAUL
 - **Busca en ambas direcciones**: cliente (lead) y closer
-- **Si no encuentras resultados**, amplía la búsqueda quitando filtros
+- **SIEMPRE usa zona horaria**: (fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::date para fechas
+- **Si no encuentras resultados específicos**: trae TODOS los registros recientes (últimos 60 días) y analiza con IA para encontrar coincidencias
+- **Si aún no encuentras nada**: sugiere al usuario ampliar el rango de tiempo o verificar los nombres
 
 ## FORMATO DE RESPUESTA
 
@@ -251,11 +260,13 @@ type AgentStepResult = {
 export async function runAgentStep(
   history: AgentMessage[],
   idCuenta: number,
+  timezone: string = "America/Bogota",
   lastToolResult?: unknown
 ): Promise<AgentStepResult> {
   // Construir el prompt con contexto actual
   const systemWithContext = SYSTEM_PROMPT.replace(/{ID_ACTUAL}/g, String(idCuenta))
-    .replace(/{ID}/g, String(idCuenta));
+    .replace(/{ID}/g, String(idCuenta))
+    .replace(/{TIMEZONE}/g, timezone);
 
   // Serializar historial
   let conversationText = "";
@@ -291,11 +302,22 @@ export async function runAgentStep(
 
   // Instrucciones finales
   const finalInstruction = lastToolResult 
-    ? "Responde al usuario basándote en los datos obtenidos. NO uses herramientas de nuevo a menos que sea estrictamente necesario."
+    ? (() => {
+        const result = lastToolResult as { fallback?: boolean; noResults?: boolean; message?: string };
+        if (result.fallback) {
+          return `ANÁLISIS CON IA: ${result.message || ""}\n\nAnaliza TODOS los registros que recibiste y encuentra coincidencias con los nombres mencionados por el usuario (raul, raúl, blas, etc.). Compara variaciones de nombres (con/sin acentos, mayúsculas/minúsculas). Si encuentras coincidencias, preséntalas. Si NO encuentras nada, sugiere ampliar el rango de tiempo.`;
+        }
+        if (result.noResults) {
+          return `NO HAY RESULTADOS: ${result.message || ""}\n\nResponde al usuario explicando que no encontré resultados en los últimos 60 días y sugiere que amplíe el rango de tiempo o verifique los nombres.`;
+        }
+        return "Responde al usuario basándote en los datos obtenidos. NO uses herramientas de nuevo a menos que sea estrictamente necesario.";
+      })()
     : `
 Responde a la pregunta del usuario. Si necesitas datos de la base de datos, responde SOLO con el JSON de la herramienta.
 Si puedes responder directamente, hazlo en texto natural con formato Markdown.
-IMPORTANTE: id_cuenta actual = ${idCuenta}. SIEMPRE incluye este filtro en tus queries.
+IMPORTANTE: 
+- id_cuenta actual = ${idCuenta}. SIEMPRE incluye este filtro en tus queries.
+- Zona horaria del cliente = ${timezone}. Usa (fecha_hora_evento AT TIME ZONE '${timezone}')::date para filtrar fechas.
 `;
 
   const fullPrompt = `${systemWithContext}\n\n## CONVERSACIÓN\n${conversationText}\n\n${finalInstruction}`;
@@ -345,7 +367,8 @@ IMPORTANTE: id_cuenta actual = ${idCuenta}. SIEMPRE incluye este filtro en tus q
  */
 export async function executeReadOnlySql(
   query: string, 
-  _idCuenta: number // Prefijo _ indica que es para referencia futura (RLS)
+  _idCuenta: number, // Prefijo _ indica que es para referencia futura (RLS)
+  params?: unknown[] // Parámetros opcionales para queries parametrizadas
 ): Promise<{ rows?: unknown[]; error?: string; rowCount?: number }> {
   const q = query.trim();
   
@@ -371,7 +394,7 @@ export async function executeReadOnlySql(
   }
 
   try {
-    const res = await pool.query(q);
+    const res = params ? await pool.query(q, params) : await pool.query(q);
     return { 
       rows: res.rows,
       rowCount: res.rowCount ?? 0

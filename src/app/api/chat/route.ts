@@ -19,11 +19,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Formato de mensajes inválido" }, { status: 400 });
     }
 
+    // Obtener zona horaria del cliente (server-side desde env)
+    const timezone = process.env.NEXT_PUBLIC_CLIENT_TIMEZONE || "America/Bogota";
+
     // Limitar historial para no saturar el contexto
     const recentHistory = messages.slice(-20);
 
-    // Ejecutar paso del agente
-    let result = await runAgentStep(recentHistory, me.id_cuenta);
+    // Ejecutar paso del agente con zona horaria
+    let result = await runAgentStep(recentHistory, me.id_cuenta, timezone);
     let iterations = 0;
 
     // Loop de herramientas con límite
@@ -48,19 +51,97 @@ export async function POST(req: NextRequest) {
           result = await runAgentStep(
             [...recentHistory, { role: "model", content: "", toolCall: tool }],
             me.id_cuenta,
+            timezone,
             { error: sqlResult.error }
           );
         } else {
-          // Éxito: pasar resultados al agente para análisis
-          result = await runAgentStep(
-            [...recentHistory, { role: "model", content: "", toolCall: tool }],
-            me.id_cuenta,
-            { 
-              rows: sqlResult.rows,
-              rowCount: sqlResult.rowCount,
-              query: query // Para referencia
+          // ═══════════════════════════════════════════════════════════════════
+          // ESTRATEGIA DE BÚSQUEDA PERSISTENTE
+          // ═══════════════════════════════════════════════════════════════════
+          const rowCount = sqlResult.rowCount || 0;
+          const rows = sqlResult.rows || [];
+
+          // Si no encontró resultados Y es una búsqueda específica (contiene nombres o "llamada")
+          const isSpecificSearch = query.toLowerCase().includes("cliente") || 
+                                   query.toLowerCase().includes("closer") ||
+                                   query.toLowerCase().includes("llamada") ||
+                                   query.toLowerCase().includes("raúl") ||
+                                   query.toLowerCase().includes("raul") ||
+                                   query.toLowerCase().includes("blas");
+
+          if (rowCount === 0 && isSpecificSearch && iterations === 1) {
+            // Primera búsqueda falló: traer TODOS los registros recientes para análisis con IA
+            console.log(`[Aura] Búsqueda específica sin resultados. Traeré todos los registros recientes para análisis.`);
+            
+            // Query de fallback: traer todos los registros recientes con parámetros seguros
+            const fallbackQuery = `
+              SELECT 
+                id_evento,
+                fecha_hora_evento,
+                (fecha_hora_evento AT TIME ZONE $2)::timestamp as fecha_local,
+                cliente,
+                closer,
+                categoria,
+                cash_collected,
+                facturacion,
+                resumen_ia,
+                objeciones_ia,
+                link_llamada
+              FROM eventos_llamadas_tiempo_real
+              WHERE id_cuenta = $1
+                AND (fecha_hora_evento AT TIME ZONE $2)::date >= CURRENT_DATE - INTERVAL '60 days'
+              ORDER BY fecha_hora_evento DESC
+              LIMIT 50
+            `;
+
+            const fallbackResult = await executeReadOnlySql(
+              fallbackQuery, 
+              me.id_cuenta,
+              [me.id_cuenta, timezone] // Parámetros seguros
+            );
+            
+            if (!fallbackResult.error && fallbackResult.rows && fallbackResult.rows.length > 0) {
+              // Pasar todos los registros para que IA analice y encuentre coincidencias
+              result = await runAgentStep(
+                [...recentHistory, { role: "model", content: "", toolCall: tool }],
+                me.id_cuenta,
+                timezone,
+                { 
+                  rows: fallbackResult.rows,
+                  rowCount: fallbackResult.rows.length,
+                  query: query,
+                  fallback: true,
+                  message: "No encontré resultados con la búsqueda específica. Aquí están todos los registros recientes (últimos 60 días). Analiza estos datos y encuentra coincidencias con los nombres mencionados por el usuario."
+                }
+              );
+            } else {
+              // Ni siquiera hay registros recientes
+              result = await runAgentStep(
+                [...recentHistory, { role: "model", content: "", toolCall: tool }],
+                me.id_cuenta,
+                timezone,
+                { 
+                  rows: [],
+                  rowCount: 0,
+                  query: query,
+                  noResults: true,
+                  message: "No encontré resultados en los últimos 60 días. Sugiere al usuario que amplíe el rango de tiempo o verifique los nombres."
+                }
+              );
             }
-          );
+          } else {
+            // Resultados encontrados o no es búsqueda específica: análisis normal
+            result = await runAgentStep(
+              [...recentHistory, { role: "model", content: "", toolCall: tool }],
+              me.id_cuenta,
+              timezone,
+              { 
+                rows: rows,
+                rowCount: rowCount,
+                query: query
+              }
+            );
+          }
         }
         continue;
       }
@@ -108,7 +189,7 @@ export async function POST(req: NextRequest) {
     if (iterations >= MAX_TOOL_ITERATIONS && result.toolCall) {
       console.warn("[Aura] Se alcanzó el límite de iteraciones de herramientas");
       return NextResponse.json({
-        response: "He realizado múltiples consultas pero no pude obtener una respuesta completa. ¿Podrías reformular tu pregunta de forma más específica?"
+        response: "He realizado múltiples consultas pero no pude obtener una respuesta completa. ¿Podrías reformular tu pregunta de forma más específica o indicarme un rango de fechas?"
       });
     }
 
