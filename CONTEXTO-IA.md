@@ -265,6 +265,7 @@ Fecha: 2025-12-09
 
 - Autenticación y permisos:
   - Cookie de sesión HttpOnly firmada (JWT) por 24h (`SESSION_SECRET`).
+  - **Nueva funcionalidad:** Checkbox "Confiar en este dispositivo" extiende la sesión a 30 días.
   - Superadmin bootstrap via `SUPERADMIN_PASS`.
   - Endpoints: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`.
   - CRUD de usuarios: `GET/POST /api/usuarios`, `PATCH/DELETE /api/usuarios/:id`.

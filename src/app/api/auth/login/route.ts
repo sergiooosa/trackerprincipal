@@ -6,6 +6,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const clave = String(body?.clave ?? "").trim();
+    const remember = Boolean(body?.remember ?? false);
     if (!clave) {
       return NextResponse.json({ error: "Falta clave" }, { status: 400 });
     }
@@ -22,9 +23,9 @@ export async function POST(req: NextRequest) {
         rol: "superadmin",
         permisos: null,
       };
-      const token = await createSession(user);
+      const token = await createSession(user, remember);
       const res = NextResponse.json({ ok: true, user });
-      attachSessionCookie(res, token);
+      attachSessionCookie(res, token, remember);
       // Registrar acción
       try {
         await pool.query(
@@ -52,9 +53,9 @@ export async function POST(req: NextRequest) {
           rol: (row.rol === "superadmin" ? "superadmin" : "usuario"),
           permisos: row.permisos || null,
         };
-        const token = await createSession(user);
+        const token = await createSession(user, remember);
         const res = NextResponse.json({ ok: true, user });
-        attachSessionCookie(res, token);
+        attachSessionCookie(res, token, remember);
         try {
           await pool.query(
             `INSERT INTO historial_acciones (id_cuenta, usuario_asociado, accion, detalles) VALUES ($1,$2,$3,$4::jsonb)`,

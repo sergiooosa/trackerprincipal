@@ -303,7 +303,7 @@ export default function Home() {
   const [loggingIn, setLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  const meQuery = useQuery<{ user: { nombre: string; rol: string } | null }>({
+  const meQuery = useQuery<{ user: { nombre: string; rol: string; permisos?: Record<string, any> } | null }>({
     queryKey: ["me"],
     queryFn: async () => {
       const res = await fetch("/api/auth/me", { cache: "no-store" });
@@ -312,6 +312,37 @@ export default function Home() {
     },
   });
   const me = meQuery.data?.user ?? null;
+
+  // Función auxiliar para verificar permisos
+  const canView = (
+    u: typeof me, 
+    section: 'tarjetas' | 'graficas' | 'adquisicion' | 'leaderboard', 
+    item?: string
+  ): boolean => {
+    if (!u) return false;
+    if (u.rol === "superadmin") return true;
+    
+    // Si no tiene permisos definidos (legacy), permitimos ver todo por compatibilidad
+    // O si prefieres bloquear, retorna false. Asumiremos true por ahora.
+    if (!u.permisos || Object.keys(u.permisos).length === 0) return true;
+
+    // Casteamos a any porque la estructura es dinámica en JSONB
+    const p = u.permisos as any;
+    const group = p[section];
+    
+    // Si la sección no existe o está deshabilitada globalmente
+    if (!group || group.enabled === false) return false;
+
+    // Si se pide un item específico dentro de la sección
+    if (item) {
+      // Si el item no está definido explícitamente, asumimos true si la sección está enabled,
+      // o false si queremos ser estrictos. Según la lógica del admin panel, items son booleanos.
+      return group.items?.[item] === true;
+    }
+
+    // Si solo se pide la sección general
+    return true;
+  };
 
   const { data, isLoading, isError, isFetching, error } = useQuery<ApiResponse>({
     queryKey: ["dashboard", `id:${clientId}`, `tz:${timezone}`, startDate?.toISOString(), endDate?.toISOString()],
@@ -403,6 +434,7 @@ export default function Home() {
                     setLoginError(null);
                     const fd = new FormData(ev.currentTarget as HTMLFormElement);
                     const clave = String(fd.get("clave") || "");
+                    const remember = fd.get("remember") === "on";
                     if (!clave) {
                       setLoginError("Ingresa la clave.");
                       return;
@@ -412,7 +444,7 @@ export default function Home() {
                       const res = await fetch("/api/auth/login", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ clave }),
+                        body: JSON.stringify({ clave, remember }),
                       });
                       if (!res.ok) {
                         const j = await res.json().catch(() => ({}));
@@ -429,6 +461,20 @@ export default function Home() {
                   <div>
                     <label className="text-sm text-neutral-300">Clave</label>
                     <Input name="clave" type="password" required className="mt-1" />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      name="remember"
+                      id="remember"
+                      className="h-4 w-4 rounded border-neutral-800 bg-neutral-900 text-emerald-600 focus:ring-emerald-600"
+                    />
+                    <label
+                      htmlFor="remember"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-neutral-300"
+                    >
+                      ¿Confiar en este dispositivo?
+                    </label>
                   </div>
                   {loginError && <div className="text-sm text-red-400">{loginError}</div>}
                   <div className="flex justify-end">
@@ -682,35 +728,50 @@ export default function Home() {
         <>
           <div className="mb-4 flex items-center gap-2" />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-8">
+            {canView(me, 'tarjetas', 'inversion') && (
             <Card className="bg-gradient-to-br from-[#160e1f] to-[#0e0b19] border border-[#3a214b] shadow-[0_0_0_1px_rgba(168,85,247,0.15),0_10px_40px_-10px_rgba(168,85,247,0.3)]">
               <CardHeader><CardTitle className="text-white">Inversión en publicidad</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-fuchsia-300">{currency(data?.kpis?.total_gasto_ads || 0)}</CardContent>
             </Card>
+            )}
+            {canView(me, 'tarjetas', 'impresiones') && (
             <Card className="bg-gradient-to-br from-[#0b1420] to-[#0a0f18] border border-[#1b2a40] shadow-[0_0_0_1px_rgba(59,130,246,0.12),0_10px_40px_-10px_rgba(59,130,246,0.25)]">
               <CardHeader><CardTitle className="text-white">Impresiones</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-blue-300">{(data?.kpis?.impresiones ?? 0).toLocaleString()}</CardContent>
             </Card>
+            )}
+            {canView(me, 'tarjetas', 'ctr') && (
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader><CardTitle className="text-white">CTR</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-cyan-300">{Number(data?.kpis?.ctr ?? 0).toFixed(2)}%</CardContent>
             </Card>
+            )}
+            {canView(me, 'tarjetas', 'vsl_play_rate') && (
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
               <CardHeader><CardTitle className="text-white">VSL PLAY RATE %</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-emerald-300">{Number(data?.kpis?.vsl_play_rate ?? 0).toFixed(1)}%</CardContent>
             </Card>
+            )}
+            {canView(me, 'tarjetas', 'vsl_engagement') && (
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
               <CardHeader><CardTitle className="text-white">VSL ENGAGEMENT %</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-emerald-300">{Number(data?.kpis?.vsl_engagement ?? 0).toFixed(1)}%</CardContent>
             </Card>
+            )}
             
+            {canView(me, 'tarjetas', 'reuniones_agendadas') && (
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader><CardTitle className="text-white">Reuniones agendadas</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-cyan-300">{(data?.kpis?.reuniones_agendadas ?? 0).toLocaleString()}</CardContent>
             </Card>
+            )}
+            {canView(me, 'tarjetas', 'reuniones_calificadas') && (
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader><CardTitle className="text-white">Reuniones calificadas</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-cyan-300">{totalCalificadasEventos.toLocaleString()}</CardContent>
             </Card>
+            )}
+            {canView(me, 'tarjetas', 'reuniones_asistidas') && (
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader><CardTitle className="text-white">Reuniones asistidas (show rate)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-cyan-300">{(() => {
@@ -723,6 +784,8 @@ export default function Home() {
                 return `${showsVisibles.toLocaleString()} (${pct.toFixed(1)}%)`;
               })()}</CardContent>
             </Card>
+            )}
+            {canView(me, 'tarjetas', 'llamadas_cerradas') && (
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
               <CardHeader><CardTitle className="text-white">Llamadas cerradas (close rate)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-emerald-300">{(() => {
@@ -732,59 +795,83 @@ export default function Home() {
                 return `${sales.toLocaleString()} (${pct.toFixed(1)}%)`;
               })()}</CardContent>
             </Card>
+            )}
 
+            {canView(me, 'tarjetas', 'llamadas_canceladas') && (
             <Card className="bg-gradient-to-br from-[#220b0b] to-[#150a0a] border border-[#4a1b1b] shadow-[0_0_0_1px_rgba(248,113,113,0.15),0_10px_40px_-10px_rgba(248,113,113,0.3)]">
               <CardHeader><CardTitle className="text-white">Llamadas canceladas</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-red-300">{(data?.kpis?.llamadas_canceladas ?? 0).toLocaleString()}</CardContent>
             </Card>
+            )}
 
+            {canView(me, 'tarjetas', 'llamadas_pendientes') && (
             <Card className="bg-gradient-to-br from-[#1f1a0b] to-[#13100a] border border-[#3a321b] shadow-[0_0_0_1px_rgba(234,179,8,0.15),0_10px_40px_-10px_rgba(234,179,8,0.3)]">
               <CardHeader><CardTitle className="text-white">Llamadas pendientes (PDTE)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-yellow-300">{(data?.kpis?.llamadas_pendientes ?? 0).toLocaleString()}</CardContent>
             </Card>
+            )}
 
+            {canView(me, 'tarjetas', 'no_show') && (
             <Card className="bg-gradient-to-br from-[#1f1510] to-[#130f0a] border border-[#3a2d1b] shadow-[0_0_0_1px_rgba(251,146,60,0.15),0_10px_40px_-10px_rgba(251,146,60,0.3)]">
               <CardHeader><CardTitle className="text-white">No Show</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-orange-300">{(data?.kpis?.no_show_agendas ?? 0).toLocaleString()}</CardContent>
             </Card>
+            )}
 
+            {canView(me, 'tarjetas', 'facturacion') && (
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader>
                 <CardTitle className="text-white">Facturación</CardTitle>
               </CardHeader>
               <CardContent className="text-2xl font-semibold text-cyan-300">{currency(data?.kpis?.total_facturacion || 0)}</CardContent>
             </Card>
+            )}
+            {canView(me, 'tarjetas', 'cash_collected') && (
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
               <CardHeader><CardTitle className="text-white">Cash Collected</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-emerald-300">{currency(data?.kpis?.cash_collected || 0)}</CardContent>
             </Card>
+            )}
             
+            {canView(me, 'tarjetas', 'ticket_promedio') && (
             <Card className="bg-gradient-to-br from-[#0b1420] to-[#0a0f18] border border-[#1b2a40] shadow-[0_0_0_1px_rgba(59,130,246,0.12),0_10px_40px_-10px_rgba(59,130,246,0.25)]">
               <CardHeader><CardTitle className="text-white">Ticket promedio</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-blue-300">{currency(data?.kpis?.ticket_promedio || 0)}</CardContent>
             </Card>
+            )}
+            {canView(me, 'tarjetas', 'costo_agenda') && (
             <Card className="bg-gradient-to-br from-[#160e1f] to-[#0e0b19] border border-[#3a214b] shadow-[0_0_0_1px_rgba(168,85,247,0.15),0_10px_40px_-10px_rgba(168,85,247,0.3)]">
               <CardHeader><CardTitle className="text-white">Costo por agenda calificada</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-fuchsia-300">{currency(data?.kpis?.costo_por_agenda_calificada || 0)}</CardContent>
             </Card>
+            )}
+            {canView(me, 'tarjetas', 'costo_show') && (
             <Card className="bg-gradient-to-br from-[#160e1f] to-[#0e0b19] border border-[#3a214b] shadow-[0_0_0_1px_rgba(168,85,247,0.15),0_10px_40px_-10px_rgba(168,85,247,0.3)]">
               <CardHeader><CardTitle className="text-white">Costo por show</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-fuchsia-300">{currency(data?.kpis?.costo_por_show || 0)}</CardContent>
             </Card>
+            )}
+            {canView(me, 'tarjetas', 'cac') && (
             <Card className="bg-gradient-to-br from-[#160e1f] to-[#0e0b19] border border-[#3a214b] shadow-[0_0_0_1px_rgba(168,85,247,0.15),0_10px_40px_-10px_rgba(168,85,247,0.3)]">
               <CardHeader><CardTitle className="text-white">Costo por adquisición (CAC)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-fuchsia-300">{currency(data?.kpis?.cac || 0)}</CardContent>
             </Card>
+            )}
+            {canView(me, 'tarjetas', 'roas_facturacion') && (
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
               <CardHeader><CardTitle className="text-white">ROAS (Facturación)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-emerald-300">{data?.kpis?.roas ? data.kpis.roas.toFixed(2) + "x" : "—"}</CardContent>
             </Card>
+            )}
+            {canView(me, 'tarjetas', 'roas_cash') && (
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
               <CardHeader><CardTitle className="text-white">ROAS (Cash Collected)</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-emerald-300">{data?.kpis?.roas_cash_collected ? data.kpis.roas_cash_collected.toFixed(2) + "x" : "—"}</CardContent>
             </Card>
+            )}
             
             {/* Nuevos tableros */}
+            {canView(me, 'tarjetas', 'revenue_show') && (
             <Card className="bg-gradient-to-br from-[#1a0f2e] to-[#0f0a1a] border border-[#4a2c5a] shadow-[0_0_0_1px_rgba(147,51,234,0.15),0_10px_40px_-10px_rgba(147,51,234,0.3)]">
               <CardHeader><CardTitle className="text-white">Revenue por Show</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-purple-300">
@@ -795,7 +882,9 @@ export default function Home() {
                 })()}
               </CardContent>
             </Card>
+            )}
             
+            {canView(me, 'tarjetas', 'pct_calificacion') && (
             <Card className="bg-gradient-to-br from-[#0f1a2e] to-[#0a0f1a] border border-[#2c4a5a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader><CardTitle className="text-white">% Calificación</CardTitle></CardHeader>
               <CardContent className="text-2xl font-semibold text-blue-300">
@@ -806,9 +895,12 @@ export default function Home() {
                 })()}
               </CardContent>
             </Card>
+            )}
           </div>
 
+          {canView(me, 'graficas') && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {canView(me, 'graficas', 'financiero') && (
             <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800">
               <CardHeader>
                 <CardTitle className="text-white">Rendimiento Financiero</CardTitle>
@@ -839,7 +931,9 @@ export default function Home() {
                 </div>
               </CardContent>
             </Card>
+            )}
 
+            {canView(me, 'graficas', 'volumen') && (
             <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800">
               <CardHeader>
                 <CardTitle className="text-white">Volumen de Llamadas</CardTitle>
@@ -860,10 +954,13 @@ export default function Home() {
                 </div>
               </CardContent>
             </Card>
+            )}
           </div>
+          )}
 
           {/* ... sección movida al final ... */}
 
+          {canView(me, 'adquisicion') && (
           <div className="w-full bg-neutral-900/60 backdrop-blur rounded-xl border border-neutral-800 shadow-[0_0_30px_rgba(0,0,0,0.3)] mb-8 p-6">
             <div className="mb-6">
               <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
@@ -1163,7 +1260,9 @@ export default function Home() {
             </div>
             )}
           </div>
+          )}
 
+          {canView(me, 'leaderboard') && (
           <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800 mb-8 transition-all duration-300 hover:shadow-[0_0_0_1px_rgba(56,189,248,0.25),0_20px_60px_-15px_rgba(56,189,248,0.35)]">
             <CardHeader>
               <CardTitle className="text-white">Leaderboard de Closers</CardTitle>
@@ -1469,6 +1568,7 @@ export default function Home() {
               </Accordion>
             </CardContent>
           </Card>
+          )}
 
           {/* Llamadas pendientes (al final) */}
           <Card className="bg-gradient-to-br from-[#0b0b12] to-[#0a0a0e] border border-[#2a2a3a] mb-8 overflow-hidden">

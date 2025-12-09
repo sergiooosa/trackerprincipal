@@ -12,6 +12,7 @@ export type SessionUser = {
 
 const COOKIE_NAME = "session_token";
 const ONE_DAY_SECONDS = 60 * 60 * 24;
+const THIRTY_DAYS_SECONDS = 60 * 60 * 24 * 30;
 
 function getSecret(): Uint8Array {
   const secret = process.env.SESSION_SECRET;
@@ -34,11 +35,12 @@ export async function verifyPassword(plain: string, hash: string): Promise<boole
   }
 }
 
-export async function createSession(user: SessionUser): Promise<string> {
+export async function createSession(user: SessionUser, remember: boolean = false): Promise<string> {
+  const expiration = remember ? `${THIRTY_DAYS_SECONDS}s` : `${ONE_DAY_SECONDS}s`;
   const jwt = await new SignJWT(user as unknown as Record<string, unknown>)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime(`${ONE_DAY_SECONDS}s`)
+    .setExpirationTime(expiration)
     .sign(getSecret());
   return jwt;
 }
@@ -54,15 +56,16 @@ export async function readSession(req: NextRequest): Promise<SessionUser | null>
   }
 }
 
-export function attachSessionCookie(res: NextResponse, token: string) {
+export function attachSessionCookie(res: NextResponse, token: string, remember: boolean = false) {
   const isProd = process.env.NODE_ENV === "production";
+  const maxAge = remember ? THIRTY_DAYS_SECONDS : ONE_DAY_SECONDS;
   res.cookies.set({
     name: COOKIE_NAME,
     value: token,
     httpOnly: true,
     sameSite: "lax",
     secure: isProd,
-    maxAge: ONE_DAY_SECONDS,
+    maxAge: maxAge,
     path: "/",
   });
 }
@@ -78,5 +81,6 @@ export function clearSessionCookie(res: NextResponse) {
     path: "/",
   });
 }
+
 
 
