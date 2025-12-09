@@ -323,7 +323,13 @@ function EditAdsMetricModal({
     } finally {
       setLoading(false);
     }
-  };
+  }, [startDate, endDate, campo]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadData();
+    }
+  }, [isOpen, loadData]);
 
   const handleSave = async () => {
     setSaving(true);
