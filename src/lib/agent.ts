@@ -47,12 +47,14 @@ Métricas de pauta publicitaria por día.
 |---------|------|-------------|
 | id_cuenta | INT | Identificador del cliente |
 | fecha | DATE | Día de las métricas |
-| gasto | NUMERIC | Spend total del día |
-| impresiones | INT | Impresiones totales |
+| gasto_total_ad | NUMERIC | **CRÍTICO**: Spend total del día (usar esta columna para ROAS, NO "gasto") |
+| impresiones_totales | INT | Impresiones totales |
 | clicks_unicos | INT | Clicks únicos |
 | ctr | NUMERIC | Click-through rate (%) |
 | cpc | NUMERIC | Costo por click |
 | cpm | NUMERIC | Costo por mil impresiones |
+| play_rate | NUMERIC | VSL play rate |
+| engagement | NUMERIC | VSL engagement |
 
 ### 4. resumenes_diarios_creativos
 Métricas por creativo individual.
@@ -83,10 +85,17 @@ const BUSINESS_RULES = `
 3. **CAC** = Gasto Total Ads / Número de Cierres
    - Costo de adquisición de cliente
 
-4. **ROAS** = Facturación Total / Gasto Ads
+4. **ROAS (Facturación)** = Facturación Total / Gasto Ads
+   - Facturación desde eventos_llamadas_tiempo_real.facturacion
+   - Gasto desde resumenes_diarios_ads.gasto_total_ad
    - BENCHMARK: >3x es rentable
 
-5. **Ticket Promedio** = Facturación / Cierres
+5. **ROAS (Cash Collected)** = Cash Collected Total / Gasto Ads
+   - Cash Collected desde eventos_llamadas_tiempo_real.cash_collected
+   - Gasto desde resumenes_diarios_ads.gasto_total_ad
+   - BENCHMARK: >2x es bueno
+
+6. **Ticket Promedio** = Facturación / Cierres
 
 ## REGLAS SQL
 
@@ -227,17 +236,47 @@ GROUP BY LOWER(TRIM(anuncio_origen))
 ORDER BY facturacion_total DESC, cierres DESC
 LIMIT 1;
 
+### ⭐ ROAS TOTAL de la última semana (igual que el dashboard)
+-- CRÍTICO: Usar resumenes_diarios_ads.gasto_total_ad (NO "gasto")
+-- Hay DOS métricas de ROAS: Facturación y Cash Collected
+SELECT 
+  COALESCE(SUM(a.gasto_total_ad), 0) as gasto_total,
+  COALESCE(SUM(e.facturacion), 0) as facturacion_total,
+  COALESCE(SUM(e.cash_collected), 0) as cash_collected_total,
+  CASE 
+    WHEN COALESCE(SUM(a.gasto_total_ad), 0) > 0 
+    THEN ROUND((COALESCE(SUM(e.facturacion), 0) / SUM(a.gasto_total_ad))::numeric, 2)
+    ELSE 0
+  END as roas_facturacion,
+  CASE 
+    WHEN COALESCE(SUM(a.gasto_total_ad), 0) > 0 
+    THEN ROUND((COALESCE(SUM(e.cash_collected), 0) / SUM(a.gasto_total_ad))::numeric, 2)
+    ELSE 0
+  END as roas_cash_collected
+FROM resumenes_diarios_ads a
+LEFT JOIN eventos_llamadas_tiempo_real e
+  ON a.id_cuenta = e.id_cuenta
+  AND (e.fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::date = a.fecha
+WHERE a.id_cuenta = {ID}
+  AND a.fecha >= CURRENT_DATE - INTERVAL '7 days';
+
 ### ⭐ ROAS por anuncio (usar gasto de resumenes_diarios_creativos)
--- CRÍTICO: Para ROAS, usar facturacion de eventos_llamadas_tiempo_real y gasto de resumenes_diarios_creativos
+-- CRÍTICO: Para ROAS por creativo, usar facturacion de eventos_llamadas_tiempo_real y gasto de resumenes_diarios_creativos
 SELECT 
   LOWER(TRIM(c.nombre_de_creativo)) as creativo,
   COALESCE(SUM(c.gasto_total_creativo), 0) as gasto_total,
   COALESCE(SUM(e.facturacion), 0) as facturacion_total,
+  COALESCE(SUM(e.cash_collected), 0) as cash_collected_total,
   CASE 
     WHEN COALESCE(SUM(c.gasto_total_creativo), 0) > 0 
     THEN ROUND((COALESCE(SUM(e.facturacion), 0) / SUM(c.gasto_total_creativo))::numeric, 2)
     ELSE 0
-  END as roas
+  END as roas_facturacion,
+  CASE 
+    WHEN COALESCE(SUM(c.gasto_total_creativo), 0) > 0 
+    THEN ROUND((COALESCE(SUM(e.cash_collected), 0) / SUM(c.gasto_total_creativo))::numeric, 2)
+    ELSE 0
+  END as roas_cash_collected
 FROM resumenes_diarios_creativos c
 LEFT JOIN eventos_llamadas_tiempo_real e 
   ON LOWER(TRIM(c.nombre_de_creativo)) = LOWER(TRIM(e.anuncio_origen))
@@ -246,7 +285,7 @@ LEFT JOIN eventos_llamadas_tiempo_real e
 WHERE c.id_cuenta = {ID}
   AND c.fecha >= CURRENT_DATE - INTERVAL '7 days'
 GROUP BY LOWER(TRIM(c.nombre_de_creativo))
-ORDER BY roas DESC;
+ORDER BY roas_facturacion DESC;
 
 ### ⭐ Reuniones por closer (usar eventos_llamadas_tiempo_real)
 -- CRÍTICO: Para contar reuniones de un closer, usar eventos_llamadas_tiempo_real, NO resumenes_diarios_agendas
@@ -424,10 +463,15 @@ LIMIT 1;
 
 #### ¿Cuál es mi ROAS de la última semana?
 **Lógica CRÍTICA**: 
+- **Hay DOS métricas de ROAS en el dashboard:**
+  1. **ROAS (Facturación)** = facturacion_total / gasto_total_ad
+  2. **ROAS (Cash Collected)** = cash_collected_total / gasto_total_ad
 - Facturación desde eventos_llamadas_tiempo_real.facturacion
-- Gasto desde resumenes_diarios_ads.gasto (total) o resumenes_diarios_creativos.gasto_total_creativo (por creativo)
-- ROAS = SUM(facturacion) / SUM(gasto)
+- Cash Collected desde eventos_llamadas_tiempo_real.cash_collected
+- **Gasto desde resumenes_diarios_ads.gasto_total_ad** (NO "gasto", es "gasto_total_ad")
+- Para ROAS total: JOIN resumenes_diarios_ads con eventos_llamadas_tiempo_real por fecha
 - Filtrar por última semana: fecha >= CURRENT_DATE - INTERVAL '7 days'
+- **SIEMPRE calcular ambas métricas** si el usuario pregunta por ROAS sin especificar
 
 #### ¿Cuál es mi CAC?
 **Lógica**:
@@ -443,7 +487,9 @@ LIMIT 1;
 - **Si no encuentras resultados específicos**: trae TODOS los registros recientes (últimos 60 días) y analiza con IA para encontrar coincidencias
 - **Si aún no encuentras nada**: sugiere al usuario ampliar el rango de tiempo o verificar los nombres
 - **CRÍTICO**: Para "anuncio ganador" o "mejor anuncio", SIEMPRE usar ventas/ROAS, NUNCA solo número de agendas
-- **CRÍTICO**: Para ROAS, usar gasto de resumenes_diarios_ads o resumenes_diarios_creativos, NO buscar columna "gasto" en otras tablas
+- **CRÍTICO**: Para ROAS, usar resumenes_diarios_ads.gasto_total_ad (NO "gasto", es "gasto_total_ad")
+- **CRÍTICO**: Hay DOS métricas de ROAS: ROAS (Facturación) y ROAS (Cash Collected) - calcular ambas si no se especifica
+- **CRÍTICO**: Para ROAS por creativo, usar resumenes_diarios_creativos.gasto_total_creativo
 - **CRÍTICO**: Para reuniones de un closer, usar eventos_llamadas_tiempo_real donde closer = nombre, NO buscar en otras tablas
 
 ## FORMATO DE RESPUESTA - ⚠️ CRÍTICO
@@ -629,9 +675,9 @@ IMPORTANTE:
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // DETECCIÓN DE INTENCIÓN DE TOOL CALL
+  // DETECCIÓN DE INTENCIÓN DE TOOL CALL - FORZAR EJECUCIÓN
   // Si el modelo dice que va a hacer algo pero no generó el tool call,
-  // detectamos la intención y forzamos la generación
+  // detectamos la intención y forzamos la generación CON MÁXIMA PRIORIDAD
   // ═══════════════════════════════════════════════════════════════════════════
   const lowerCleaned = cleaned.toLowerCase();
   const hasToolIntent = 
@@ -641,16 +687,52 @@ IMPORTANTE:
     lowerCleaned.includes("necesito buscar") ||
     lowerCleaned.includes("voy a ejecutar") ||
     lowerCleaned.includes("necesito ejecutar") ||
+    lowerCleaned.includes("voy a corregir") ||
+    lowerCleaned.includes("voy a ajustar") ||
+    lowerCleaned.includes("voy a realizar") ||
+    lowerCleaned.includes("permiteme hacer") ||
+    lowerCleaned.includes("permíteme hacer") ||
     lowerCleaned.includes("consultar los datos") ||
     lowerCleaned.includes("buscar la información") ||
+    lowerCleaned.includes("hacer la consulta") ||
+    lowerCleaned.includes("realizar la consulta") ||
+    lowerCleaned.includes("error") && (lowerCleaned.includes("columna") || lowerCleaned.includes("tabla")) ||
     (lowerCleaned.includes("sql") && lowerCleaned.includes("query")) ||
     (lowerCleaned.includes("base de datos") && (lowerCleaned.includes("consultar") || lowerCleaned.includes("buscar")));
 
   if (hasToolIntent && !lastToolResult) {
-    console.log(`[Aura] Detectada intención de tool call pero no se generó JSON. Forzando regeneración.`);
+    console.log(`[Aura] ⚠️ Detectada intención de tool call pero no se generó JSON. Forzando ejecución inmediata.`);
     
-    // Regenerar con instrucción más estricta
-    const strictPrompt = `${systemWithContext}\n\n## CONVERSACIÓN\n${conversationText}\n\n⚠️ INSTRUCCIÓN URGENTE: El usuario necesita datos. Genera EXCLUSIVAMENTE el JSON del tool call sql_query. NO escribas texto explicativo. Solo el JSON:\n\n{ "tool": "sql_query", "parameters": { "query": "SELECT ...", "explanation": "..." } }`;
+    // Analizar qué tipo de query necesita basándose en el contexto
+    let suggestedQuery = "";
+    const lastUserMsgLower = lastUserMsg?.toLowerCase() || "";
+    
+    // Detectar tipo de pregunta y generar query sugerida
+    if (lastUserMsgLower.includes("roas")) {
+      suggestedQuery = `SELECT 
+  COALESCE(SUM(a.gasto_total_ad), 0) as gasto_total,
+  COALESCE(SUM(e.facturacion), 0) as facturacion_total,
+  COALESCE(SUM(e.cash_collected), 0) as cash_collected_total,
+  CASE 
+    WHEN COALESCE(SUM(a.gasto_total_ad), 0) > 0 
+    THEN ROUND((COALESCE(SUM(e.facturacion), 0) / SUM(a.gasto_total_ad))::numeric, 2)
+    ELSE 0
+  END as roas_facturacion,
+  CASE 
+    WHEN COALESCE(SUM(a.gasto_total_ad), 0) > 0 
+    THEN ROUND((COALESCE(SUM(e.cash_collected), 0) / SUM(a.gasto_total_ad))::numeric, 2)
+    ELSE 0
+  END as roas_cash_collected
+FROM resumenes_diarios_ads a
+LEFT JOIN eventos_llamadas_tiempo_real e
+  ON a.id_cuenta = e.id_cuenta
+  AND (e.fecha_hora_evento AT TIME ZONE '${timezone}')::date = a.fecha
+WHERE a.id_cuenta = ${idCuenta}
+  AND a.fecha >= CURRENT_DATE - INTERVAL '7 days';`;
+    }
+    
+    // Regenerar con instrucción ULTRA estricta
+    const strictPrompt = `${systemWithContext}\n\n## CONVERSACIÓN ACTUAL\n${conversationText}\n\n## ⚠️⚠️⚠️ INSTRUCCIÓN CRÍTICA ⚠️⚠️⚠️\n\nEl usuario necesita datos AHORA. El modelo anterior dijo que iba a hacerlo pero NO lo hizo.\n\n**DEBES generar EXCLUSIVAMENTE el JSON del tool call. NO escribas NADA más. NO expliques. NO digas que vas a hacerlo. SOLO el JSON.**\n\n${suggestedQuery ? `\nQuery sugerida basada en el contexto:\n${suggestedQuery}\n\nUsa esta query o una similar, pero SIEMPRE genera el JSON del tool call.\n` : ""}\n\nFormato EXACTO requerido:\n\`\`\`json\n{ "tool": "sql_query", "parameters": { "query": "SELECT ...", "explanation": "..." } }\n\`\`\`\n\nNO escribas texto antes o después del JSON. SOLO el JSON.`;
     
     const retryResponse = await generateWithGemini(strictPrompt, userContent);
     if (retryResponse) {
@@ -664,7 +746,7 @@ IMPORTANTE:
             .trim();
           const retryParsed = JSON.parse(retryJsonStr);
           if (retryParsed.tool && retryParsed.parameters) {
-            console.log(`[Aura] Tool call generado correctamente en segundo intento.`);
+            console.log(`[Aura] ✅ Tool call generado correctamente en segundo intento (forzado).`);
             return { 
               toolCall: { name: retryParsed.tool, args: retryParsed.parameters as Record<string, unknown> },
               thinking: retryParsed.parameters.explanation as string | undefined
@@ -673,6 +755,46 @@ IMPORTANTE:
         } catch (e) {
           console.error("[Aura] Error parseando tool call en retry:", e);
         }
+      }
+      
+      // Si aún no funcionó, intentar con OpenAI como último recurso
+      console.log(`[Aura] ⚠️ Gemini no generó tool call. Intentando con OpenAI...`);
+      const openAiRetry = await generateWithOpenAI(strictPrompt, userContent);
+      if (openAiRetry) {
+        const openAiCleaned = openAiRetry.trim();
+        const openAiJsonMatch = openAiCleaned.match(/\{[\s\S]*"tool"[\s\S]*"parameters"[\s\S]*\}/);
+        if (openAiJsonMatch) {
+          try {
+            const openAiJsonStr = openAiJsonMatch[0]
+              .replace(/```json/g, "")
+              .replace(/```/g, "")
+              .trim();
+            const openAiParsed = JSON.parse(openAiJsonStr);
+            if (openAiParsed.tool && openAiParsed.parameters) {
+              console.log(`[Aura] ✅ Tool call generado con OpenAI (fallback).`);
+              return { 
+                toolCall: { name: openAiParsed.tool, args: openAiParsed.parameters as Record<string, unknown> },
+                thinking: openAiParsed.parameters.explanation as string | undefined
+              };
+            }
+          } catch (e) {
+            console.error("[Aura] Error parseando tool call con OpenAI:", e);
+          }
+        }
+      }
+      
+      // Si TODO falla, generar query manualmente basada en el contexto
+      if (suggestedQuery) {
+        console.log(`[Aura] ⚠️⚠️ Generando tool call manualmente como último recurso.`);
+        return {
+          toolCall: {
+            name: "sql_query",
+            args: {
+              query: suggestedQuery,
+              explanation: "Query generada automáticamente para corregir error previo"
+            }
+          }
+        };
       }
     }
   }
