@@ -1108,8 +1108,12 @@ IMPORTANTE:
     
     // PRIORIDAD 1: Show Rate - SIEMPRE ejecutar si se menciona
     if (lastUserMsgLower.includes("show rate") || lastUserMsgLower.includes("showrate")) {
-      const desdeFecha = effectiveDateRange.start;
-      const hastaFecha = effectiveDateRange.end;
+      const dateRange = defaultDateRange || {
+        start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        end: new Date().toISOString().split('T')[0]
+      };
+      const desdeFecha = dateRange.start;
+      const hastaFecha = dateRange.end;
       suggestedQuery = `SELECT 
   COUNT(*) FILTER (
     WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada')
