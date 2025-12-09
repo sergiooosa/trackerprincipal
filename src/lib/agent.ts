@@ -270,17 +270,37 @@ export async function runAgentStep(
 
   // Serializar historial
   let conversationText = "";
+  const userMessages: string[] = [];
+  
+  // Debug: verificar que el historial tiene mensajes
+  console.log(`[Aura] Procesando historial con ${history.length} mensajes`);
+  
   for (const msg of history) {
     if (msg.role === "user") {
-      conversationText += `\n**Usuario:** ${msg.content}\n`;
+      const content = (msg.content || "").trim();
+      if (content) {
+        console.log(`[Aura] Mensaje del usuario encontrado: "${content.slice(0, 50)}..."`);
+        conversationText += `\n**Usuario:** ${content}\n`;
+        userMessages.push(content);
+      } else {
+        console.warn(`[Aura] Mensaje del usuario vacío o sin contenido`);
+      }
     }
     if (msg.role === "model") {
       if (msg.toolCall) {
         conversationText += `\n**Aura (Tool Call):** Ejecuté ${msg.toolCall.name}\n`;
       } else {
-        conversationText += `\n**Aura:** ${msg.content}\n`;
+        const content = (msg.content || "").trim();
+        if (content) {
+          conversationText += `\n**Aura:** ${content}\n`;
+        }
       }
     }
+  }
+  
+  // Verificar que hay mensajes del usuario
+  if (userMessages.length === 0) {
+    console.error(`[Aura] ERROR: No se encontraron mensajes del usuario en el historial`);
   }
 
   // Si hay resultado de herramienta previa
@@ -294,10 +314,13 @@ export async function runAgentStep(
     conversationText += `\nAhora analiza estos datos y responde al usuario de forma clara y útil.\n`;
   }
 
-  // Última pregunta del usuario
-  const lastUserMsg = history.filter(m => m.role === "user").pop();
-  if (lastUserMsg && !lastToolResult) {
-    conversationText += `\n**Pregunta actual:** ${lastUserMsg.content}\n`;
+  // Última pregunta del usuario (SIEMPRE incluirla si existe)
+  const lastUserMsg = userMessages[userMessages.length - 1];
+  if (lastUserMsg) {
+    // Si ya está en el historial, no duplicar, pero asegurar que esté visible
+    if (!conversationText.includes(lastUserMsg)) {
+      conversationText += `\n**Pregunta actual del usuario:** ${lastUserMsg}\n`;
+    }
   }
 
   // Instrucciones finales
@@ -320,14 +343,18 @@ IMPORTANTE:
 - Zona horaria del cliente = ${timezone}. Usa (fecha_hora_evento AT TIME ZONE '${timezone}')::date para filtrar fechas.
 `;
 
-  const fullPrompt = `${systemWithContext}\n\n## CONVERSACIÓN\n${conversationText}\n\n${finalInstruction}`;
+  // Construir el prompt completo
+  // Nota: generateWithGemini concatena systemPrompt + "-----\nTRANSCRIPCIÓN:\n" + userContent
+  // Por eso pasamos el sistema como systemPrompt y la conversación como userContent
+  const systemPrompt = `${systemWithContext}\n\n${finalInstruction}`;
+  const userContent = conversationText || (lastUserMsg ? `**Usuario:** ${lastUserMsg}` : "El usuario necesita ayuda.");
 
   // Llamar al modelo
-  let responseRaw = await generateWithGemini(fullPrompt, "");
+  let responseRaw = await generateWithGemini(systemPrompt, userContent);
   
   // Fallback a OpenAI si Gemini falla
   if (!responseRaw) {
-    responseRaw = await generateWithOpenAI(fullPrompt, "");
+    responseRaw = await generateWithOpenAI(systemPrompt, userContent);
   }
 
   if (!responseRaw) {
