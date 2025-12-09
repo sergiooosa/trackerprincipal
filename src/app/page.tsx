@@ -306,7 +306,10 @@ export default function Home() {
   const meQuery = useQuery<{ user: { nombre: string; rol: string; permisos?: Record<string, unknown> } | null }>({
     queryKey: ["me"],
     queryFn: async () => {
-      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const res = await fetch("/api/auth/me", { 
+        cache: "no-store",
+        credentials: "include" // CRÍTICO: Incluir cookies en iframes
+      });
       if (!res.ok) throw new Error("No se pudo verificar la sesión");
       return res.json();
     },
@@ -458,6 +461,7 @@ export default function Home() {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ clave, remember }),
+                        credentials: "include", // CRÍTICO: Incluir cookies en iframes
                       });
                       if (!res.ok) {
                         const j = await res.json().catch(() => ({}));
@@ -503,7 +507,10 @@ export default function Home() {
               className="bg-neutral-900 border border-neutral-800 text-neutral-200 hover:border-red-400/40 hover:text-red-300"
               variant="outline"
               onClick={async () => {
-                await fetch("/api/auth/logout", { method: "POST" });
+                await fetch("/api/auth/logout", { 
+                  method: "POST",
+                  credentials: "include" // CRÍTICO: Incluir cookies en iframes
+                });
                 queryClient.invalidateQueries({ queryKey: ["me"] });
               }}
             >
