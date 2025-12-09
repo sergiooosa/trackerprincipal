@@ -70,6 +70,7 @@ export default function ChatWidget() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: historyToSend }),
+        credentials: "include", // CRÍTICO: Incluir cookies en iframes
       });
 
       if (!res.ok) {
