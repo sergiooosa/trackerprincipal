@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { generateResumenIA, extractObjecionesIA, generateReporteMarketing } from "@/lib/ai";
+import { readSession } from "@/lib/auth";
 
 const PROMPT_RESUMEN = `# ANALIZADOR FORENSE UNIVERSAL DE CONVERSACIONES
 ## SISTEMA DE TRANSCRIPCIÓN LITERAL Y ANÁLISIS CONVERSACIONAL V4.0
@@ -25,7 +26,7 @@ function isNumberLike(n: unknown): n is number {
   return typeof n === "number" && Number.isFinite(n) && n >= 0;
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const required = [
@@ -142,6 +143,15 @@ export async function POST(req: Request) {
       }
 
       await client.query("COMMIT");
+      // Log de auditoría
+      try {
+        const me = await readSession(req);
+        await pool.query(
+          `INSERT INTO historial_acciones (id_cuenta, usuario_asociado, accion, detalles)
+           VALUES ($1,$2,$3,$4::jsonb)`,
+          [id_cuenta, me?.nombre ?? "anon", "CREATE_EVENT", JSON.stringify({ id_evento, email_lead })]
+        );
+      } catch {}
       return NextResponse.json({ id_evento }, { status: 201 });
     } catch (txErr: unknown) {
       await client.query("ROLLBACK");

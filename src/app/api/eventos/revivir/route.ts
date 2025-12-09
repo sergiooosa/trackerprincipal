@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { generateResumenIA, extractObjecionesIA, generateReporteMarketing } from "@/lib/ai";
+import { readSession } from "@/lib/auth";
 
 const PROMPT_RESUMEN = `# ANALIZADOR FORENSE UNIVERSAL DE CONVERSACIONES
 (contenido abreviado)
@@ -14,7 +15,7 @@ function isNumberLike(n: unknown): n is number {
   return typeof n === "number" && Number.isFinite(n) && n >= 0;
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const client = await pool.connect();
   try {
     const body = await req.json();
@@ -117,6 +118,15 @@ export async function POST(req: Request) {
     const ins = await client.query(insertSql, params);
     const id_evento = ins.rows?.[0]?.id_evento;
     await client.query("COMMIT");
+    // Log
+    try {
+      const me = await readSession(req);
+      await pool.query(
+        `INSERT INTO historial_acciones (id_cuenta, usuario_asociado, accion, detalles)
+         VALUES ($1,$2,$3,$4::jsonb)`,
+        [id_cuenta, me?.nombre ?? "anon", "REVIVE_EVENT", JSON.stringify({ id_evento, id_registro_agenda })]
+      );
+    } catch {}
     return NextResponse.json({ id_evento }, { status: 201 });
   } catch (err: unknown) {
     await pool.query("ROLLBACK");

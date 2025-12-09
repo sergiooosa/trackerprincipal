@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import pool from "@/lib/db";
+import { readSession } from "@/lib/auth";
 
 type PatchBody = {
   categoria?: string | null;
@@ -75,6 +76,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (!res.rowCount) {
       return NextResponse.json({ error: "Evento no encontrado" }, { status: 404 });
     }
+    try {
+      const me = await readSession(req);
+      await pool.query(
+        `INSERT INTO historial_acciones (id_cuenta, usuario_asociado, accion, detalles)
+         VALUES ($1,$2,$3,$4::jsonb)`,
+        [null, me?.nombre ?? "anon", "UPDATE_EVENT", JSON.stringify({ id, fields: Object.keys(json || {}) })]
+      );
+    } catch {}
     return NextResponse.json({ ok: true, event: res.rows[0] });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Error desconocido";
@@ -111,6 +120,14 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     if (count === 0) {
       return NextResponse.json({ error: "No encontrado" }, { status: 404 });
     }
+    try {
+      const me = await readSession(req);
+      await pool.query(
+        `INSERT INTO historial_acciones (id_cuenta, usuario_asociado, accion, detalles)
+         VALUES ($1,$2,$3,$4::jsonb)`,
+        [id_cuenta, me?.nombre ?? "anon", "DELETE_EVENT", JSON.stringify({ id })]
+      );
+    } catch {}
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Error desconocido";

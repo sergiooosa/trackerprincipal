@@ -375,6 +375,15 @@ export default function Home() {
               Usuarios
             </Button>
           )}
+          {me?.rol === "superadmin" && (
+            <Button
+              variant="outline"
+              className="bg-neutral-900 border border-neutral-800 text-neutral-200 hover:border-cyan-400/40 hover:text-cyan-300"
+              onClick={() => window.open("/logs", "_self")}
+            >
+              Logs
+            </Button>
+          )}
           {!me ? (
             <Dialog open={openLogin} onOpenChange={setOpenLogin}>
               <DialogTrigger asChild>
