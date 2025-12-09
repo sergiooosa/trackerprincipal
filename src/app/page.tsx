@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 // Importación estática de XLSX para exportación a Excel
 import * as XLSX from "xlsx";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Pencil } from "lucide-react";
 
 type EventItem = {
   id_evento: string;
@@ -294,6 +295,10 @@ export default function Home() {
   const [closerStatusFilter, setCloserStatusFilter] = useState<Record<string, string>>({});
   const [creativoFilter, setCreativoFilter] = useState<string>("");
   const [adquisicionOpen, setAdquisicionOpen] = useState<boolean>(true);
+  const [editModalOpen, setEditModalOpen] = useState<{
+    campo: 'gasto_total_ad' | 'impresiones_totales' | 'play_rate' | 'engagement' | null;
+    titulo: string;
+  }>({ campo: null, titulo: '' });
   
   // Sincronizar fechas con el contexto para el ChatWidget
   useEffect(() => {
@@ -810,13 +815,33 @@ export default function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-8">
             {canView(me, 'tarjetas', 'inversion') && (
             <Card className="bg-gradient-to-br from-[#160e1f] to-[#0e0b19] border border-[#3a214b] shadow-[0_0_0_1px_rgba(168,85,247,0.15),0_10px_40px_-10px_rgba(168,85,247,0.3)]">
-              <CardHeader><CardTitle className="text-white">Inversión en publicidad</CardTitle></CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-white">Inversión en publicidad</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-neutral-400 hover:text-fuchsia-300 hover:bg-fuchsia-500/10"
+                  onClick={() => setEditModalOpen({ campo: 'gasto_total_ad', titulo: 'Inversión en publicidad' })}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </CardHeader>
               <CardContent className="text-2xl font-semibold text-fuchsia-300">{currency(data?.kpis?.total_gasto_ads || 0)}</CardContent>
             </Card>
             )}
             {canView(me, 'tarjetas', 'impresiones') && (
             <Card className="bg-gradient-to-br from-[#0b1420] to-[#0a0f18] border border-[#1b2a40] shadow-[0_0_0_1px_rgba(59,130,246,0.12),0_10px_40px_-10px_rgba(59,130,246,0.25)]">
-              <CardHeader><CardTitle className="text-white">Impresiones</CardTitle></CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-white">Impresiones</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-neutral-400 hover:text-blue-300 hover:bg-blue-500/10"
+                  onClick={() => setEditModalOpen({ campo: 'impresiones_totales', titulo: 'Impresiones' })}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </CardHeader>
               <CardContent className="text-2xl font-semibold text-blue-300">{(data?.kpis?.impresiones ?? 0).toLocaleString()}</CardContent>
             </Card>
             )}
@@ -828,13 +853,33 @@ export default function Home() {
             )}
             {canView(me, 'tarjetas', 'vsl_play_rate') && (
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
-              <CardHeader><CardTitle className="text-white">VSL PLAY RATE %</CardTitle></CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-white">VSL PLAY RATE %</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-neutral-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                  onClick={() => setEditModalOpen({ campo: 'play_rate', titulo: 'VSL PLAY RATE %' })}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </CardHeader>
               <CardContent className="text-2xl font-semibold text-emerald-300">{Number(data?.kpis?.vsl_play_rate ?? 0).toFixed(1)}%</CardContent>
             </Card>
             )}
             {canView(me, 'tarjetas', 'vsl_engagement') && (
             <Card className="bg-gradient-to-br from-[#0f1f18] to-[#0b1510] border border-[#1e3a2f] shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_10px_40px_-10px_rgba(16,185,129,0.3)]">
-              <CardHeader><CardTitle className="text-white">VSL ENGAGEMENT %</CardTitle></CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-white">VSL ENGAGEMENT %</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-neutral-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                  onClick={() => setEditModalOpen({ campo: 'engagement', titulo: 'VSL ENGAGEMENT %' })}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </CardHeader>
               <CardContent className="text-2xl font-semibold text-emerald-300">{Number(data?.kpis?.vsl_engagement ?? 0).toFixed(1)}%</CardContent>
             </Card>
             )}
@@ -1648,6 +1693,22 @@ export default function Home() {
               </Accordion>
             </CardContent>
           </Card>
+          )}
+
+          {/* Modal de edición de métricas */}
+          {editModalOpen.campo && (
+            <EditAdsMetricModal
+              campo={editModalOpen.campo}
+              titulo={editModalOpen.titulo}
+              isOpen={true}
+              onClose={() => setEditModalOpen({ campo: null, titulo: '' })}
+              startDate={startDate}
+              endDate={endDate}
+              clientId={clientId}
+              onSuccess={() => {
+                queryClient.invalidateQueries(["dashboard"]);
+              }}
+            />
           )}
 
           {/* Llamadas pendientes (al final) */}
