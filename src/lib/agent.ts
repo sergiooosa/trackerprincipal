@@ -226,12 +226,26 @@ GROUP BY 1 ORDER BY asistieron DESC;
 - **Si no encuentras resultados específicos**: trae TODOS los registros recientes (últimos 60 días) y analiza con IA para encontrar coincidencias
 - **Si aún no encuentras nada**: sugiere al usuario ampliar el rango de tiempo o verificar los nombres
 
-## FORMATO DE RESPUESTA
+## FORMATO DE RESPUESTA - ⚠️ CRÍTICO
 
-- Usa Markdown para formatear (negritas, listas, tablas cuando sea útil)
-- Si el usuario pide un archivo, usa generate_excel
-- Si necesitas datos, usa sql_query
-- Si puedes responder directamente (ej: explicar un concepto), hazlo sin herramientas
+**REGLA DE ORO**: Si necesitas datos de la base de datos, genera DIRECTAMENTE el tool call JSON. NO expliques primero que vas a hacerlo. NO digas "Voy a consultar..." o "Necesito buscar...". Simplemente genera el JSON del tool call.
+
+**Ejemplos CORRECTOS:**
+- Usuario: "¿Cómo van las ventas esta semana?"
+  → Respuesta: JSON con tool "sql_query" y parameters con query SQL
+  (NO digas "Para responder necesito consultar...")
+
+- Usuario: "Muéstrame un reporte de closers"
+  → Respuesta: JSON con tool "generate_excel" y parameters
+  (NO digas "Voy a generar un archivo...")
+
+**Solo responde con texto natural si:**
+- Puedes responder sin consultar datos (ej: explicar un concepto)
+- Ya tienes los datos de una herramienta previa y estás analizándolos
+
+**NUNCA combines explicación + tool call en la misma respuesta.**
+- MAL: "Voy a consultar los datos..." seguido de tool call
+- BIEN: Tool call JSON directamente, sin texto previo
 `;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -336,8 +350,17 @@ export async function runAgentStep(
         return "Responde al usuario basándote en los datos obtenidos. NO uses herramientas de nuevo a menos que sea estrictamente necesario.";
       })()
     : `
-Responde a la pregunta del usuario. Si necesitas datos de la base de datos, responde SOLO con el JSON de la herramienta.
-Si puedes responder directamente, hazlo en texto natural con formato Markdown.
+⚠️ INSTRUCCIÓN CRÍTICA: Si necesitas datos de la base de datos, responde EXCLUSIVAMENTE con el JSON del tool call. NO escribas explicaciones previas.
+
+Ejemplo CORRECTO:
+{ "tool": "sql_query", "parameters": { "query": "SELECT ...", "explanation": "..." } }
+
+Ejemplo INCORRECTO (NO HACER):
+"Para responder necesito consultar los datos. Voy a ejecutar la consulta ahora."
+{ "tool": "sql_query", ... }
+
+Si puedes responder sin consultar datos, hazlo en texto natural con formato Markdown.
+
 IMPORTANTE: 
 - id_cuenta actual = ${idCuenta}. SIEMPRE incluye este filtro en tus queries.
 - Zona horaria del cliente = ${timezone}. Usa (fecha_hora_evento AT TIME ZONE '${timezone}')::date para filtrar fechas.
@@ -382,6 +405,55 @@ IMPORTANTE:
       }
     } catch (e) {
       console.error("Error parseando tool call:", e);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DETECCIÓN DE INTENCIÓN DE TOOL CALL
+  // Si el modelo dice que va a hacer algo pero no generó el tool call,
+  // detectamos la intención y forzamos la generación
+  // ═══════════════════════════════════════════════════════════════════════════
+  const lowerCleaned = cleaned.toLowerCase();
+  const hasToolIntent = 
+    lowerCleaned.includes("voy a consultar") ||
+    lowerCleaned.includes("necesito consultar") ||
+    lowerCleaned.includes("voy a buscar") ||
+    lowerCleaned.includes("necesito buscar") ||
+    lowerCleaned.includes("voy a ejecutar") ||
+    lowerCleaned.includes("necesito ejecutar") ||
+    lowerCleaned.includes("consultar los datos") ||
+    lowerCleaned.includes("buscar la información") ||
+    (lowerCleaned.includes("sql") && lowerCleaned.includes("query")) ||
+    (lowerCleaned.includes("base de datos") && (lowerCleaned.includes("consultar") || lowerCleaned.includes("buscar")));
+
+  if (hasToolIntent && !lastToolResult) {
+    console.log(`[Aura] Detectada intención de tool call pero no se generó JSON. Forzando regeneración.`);
+    
+    // Regenerar con instrucción más estricta
+    const strictPrompt = `${systemWithContext}\n\n## CONVERSACIÓN\n${conversationText}\n\n⚠️ INSTRUCCIÓN URGENTE: El usuario necesita datos. Genera EXCLUSIVAMENTE el JSON del tool call sql_query. NO escribas texto explicativo. Solo el JSON:\n\n{ "tool": "sql_query", "parameters": { "query": "SELECT ...", "explanation": "..." } }`;
+    
+    const retryResponse = await generateWithGemini(strictPrompt, userContent);
+    if (retryResponse) {
+      const retryCleaned = retryResponse.trim();
+      const retryJsonMatch = retryCleaned.match(/\{[\s\S]*"tool"[\s\S]*"parameters"[\s\S]*\}/);
+      if (retryJsonMatch) {
+        try {
+          const retryJsonStr = retryJsonMatch[0]
+            .replace(/```json/g, "")
+            .replace(/```/g, "")
+            .trim();
+          const retryParsed = JSON.parse(retryJsonStr);
+          if (retryParsed.tool && retryParsed.parameters) {
+            console.log(`[Aura] Tool call generado correctamente en segundo intento.`);
+            return { 
+              toolCall: { name: retryParsed.tool, args: retryParsed.parameters as Record<string, unknown> },
+              thinking: retryParsed.parameters.explanation as string | undefined
+            };
+          }
+        } catch (e) {
+          console.error("[Aura] Error parseando tool call en retry:", e);
+        }
+      }
     }
   }
 
