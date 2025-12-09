@@ -72,6 +72,9 @@ git push -u origin main
    - `NEXT_PUBLIC_CLIENT_NAME`
    - `GEMINI_API_KEY`
    - `OPENAI_API_KEY`
+   - `SUPERADMIN_PASS`
+   - `SESSION_SECRET`
+   - `WEBHOOK_FATHOM`
 5. Asegúrate de marcar las variables para **Production**, **Preview** y **Development**
 6. Click en "Deploy"
 

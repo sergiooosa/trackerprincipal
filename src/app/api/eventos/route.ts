@@ -81,37 +81,75 @@ export async function POST(req: Request) {
       generateReporteMarketing(PROMPT_REPORTE, transcripcion),
     ]);
 
-    // Insertar en DB
-    // Convertir fecha local + tz a timestamptz en UTC
-    // Usamos: ( $1::timestamp AT TIME ZONE $2 )
-    const insertSql = `
-      INSERT INTO eventos_llamadas_tiempo_real
-        (id_cuenta, fecha_hora_evento, closer, correo_closer, cliente, categoria, cash_collected, facturacion, resumen_ia, anuncio_origen, link_llamada, email_lead, objeciones_ia, reportmarketing)
-      VALUES
-        ($1, ($2::timestamp AT TIME ZONE $3), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15)
-      RETURNING id_evento
-    `;
-    const params = [
-      id_cuenta,
-      // asegurar segundos para parseo
-      fecha_evento_local.length === 16 ? `${fecha_evento_local}:00` : fecha_evento_local,
-      tz,
-      closer,
-      correo_closer,
-      cliente,
-      categoria,
-      cash_collected,
-      facturacion,
-      resumen_ia ?? "",
-      anuncio_origen || "organico",
-      link_llamada,
-      email_lead,
-      JSON.stringify(objeciones_ia ?? { objeciones: [] }),
-      reportmarketing ?? "",
-    ];
-    const result = await pool.query(insertSql, params);
-    const id_evento = result.rows?.[0]?.id_evento;
-    return NextResponse.json({ id_evento }, { status: 201 });
+    // Transacción: insertar evento y sincronizar categoría en la agenda más reciente por email
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      // Insertar en DB
+      // Convertir fecha local + tz a timestamptz en UTC
+      // Usamos: ( $1::timestamp AT TIME ZONE $2 )
+      const insertSql = `
+        INSERT INTO eventos_llamadas_tiempo_real
+          (id_cuenta, fecha_hora_evento, closer, correo_closer, cliente, categoria, cash_collected, facturacion, resumen_ia, anuncio_origen, link_llamada, email_lead, objeciones_ia, reportmarketing)
+        VALUES
+          ($1, ($2::timestamp AT TIME ZONE $3), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15)
+        RETURNING id_evento
+      `;
+      const params = [
+        id_cuenta,
+        // asegurar segundos para parseo
+        fecha_evento_local.length === 16 ? `${fecha_evento_local}:00` : fecha_evento_local,
+        tz,
+        closer,
+        correo_closer,
+        cliente,
+        categoria,
+        cash_collected,
+        facturacion,
+        resumen_ia ?? "",
+        anuncio_origen || "organico",
+        link_llamada,
+        email_lead,
+        JSON.stringify(objeciones_ia ?? { objeciones: [] }),
+        reportmarketing ?? "",
+      ];
+      const result = await client.query(insertSql, params);
+      const id_evento = result.rows?.[0]?.id_evento;
+
+      // Sincronizar categoría en la agenda más reciente por email (case-insensitive) para este id_cuenta
+      // Mapeo de categorías a formato de agendas
+      const categoriaAgenda =
+        categoria === "cerrada" ? "Cerrada" :
+        categoria === "ofertada" ? "Ofertada" :
+        categoria === "no_ofertada" ? "No_Ofertada" : null;
+
+      if (categoriaAgenda) {
+        const updateSql = `
+          WITH target AS (
+            SELECT id_registro_agenda
+            FROM resumenes_diarios_agendas
+            WHERE id_cuenta = $1
+              AND LOWER(TRIM(COALESCE(email_lead,''))) = LOWER(TRIM($2))
+            ORDER BY "fecha de la reunion" DESC NULLS LAST, id_registro_agenda DESC
+            LIMIT 1
+          )
+          UPDATE resumenes_diarios_agendas ra
+          SET categoria = $3
+          FROM target
+          WHERE ra.id_registro_agenda = target.id_registro_agenda
+        `;
+        await client.query(updateSql, [id_cuenta, email_lead, categoriaAgenda]);
+      }
+
+      await client.query("COMMIT");
+      return NextResponse.json({ id_evento }, { status: 201 });
+    } catch (txErr: unknown) {
+      await client.query("ROLLBACK");
+      const msg = txErr instanceof Error ? txErr.message : "transacción-fallida";
+      return NextResponse.json({ error: `Error en transacción: ${msg}` }, { status: 500 });
+    } finally {
+      client.release();
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "desconocido";
     return NextResponse.json({ error: `Error creando evento: ${message}` }, { status: 500 });

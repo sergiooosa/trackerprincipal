@@ -289,7 +289,9 @@ export default function Home() {
   const [startDate, setStartDate] = useState<Date>(defaultStart);
   const [endDate, setEndDate] = useState<Date>(defaultEnd);
   const [closerFilter, setCloserFilter] = useState<Record<string, string>>({});
+  const [closerStatusFilter, setCloserStatusFilter] = useState<Record<string, string>>({});
   const [creativoFilter, setCreativoFilter] = useState<string>("");
+  const [adquisicionOpen, setAdquisicionOpen] = useState<boolean>(true);
 
   // Configuración del cliente desde variables de entorno
   const clientId = process.env.NEXT_PUBLIC_CLIENT_ID || "2";
@@ -297,6 +299,19 @@ export default function Home() {
   const clientName = process.env.NEXT_PUBLIC_CLIENT_NAME || "AutoKpi";
   const [openCreate, setOpenCreate] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [openLogin, setOpenLogin] = useState(false);
+  const [loggingIn, setLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  const meQuery = useQuery<{ user: { nombre: string; rol: string } | null }>({
+    queryKey: ["me"],
+    queryFn: async () => {
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      if (!res.ok) throw new Error("No se pudo verificar la sesión");
+      return res.json();
+    },
+  });
+  const me = meQuery.data?.user ?? null;
 
   const { data, isLoading, isError, isFetching, error } = useQuery<ApiResponse>({
     queryKey: ["dashboard", `id:${clientId}`, `tz:${timezone}`, startDate?.toISOString(), endDate?.toISOString()],
@@ -351,6 +366,82 @@ export default function Home() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">{clientName} - Traking Automático</h1>
         <div className="flex items-center gap-3">
+          {me?.rol === "superadmin" && (
+            <Button
+              variant="outline"
+              className="bg-neutral-900 border border-neutral-800 text-neutral-200 hover:border-cyan-400/40 hover:text-cyan-300"
+              onClick={() => window.open("/usuarios", "_self")}
+            >
+              Usuarios
+            </Button>
+          )}
+          {!me ? (
+            <Dialog open={openLogin} onOpenChange={setOpenLogin}>
+              <DialogTrigger asChild>
+                <Button className="bg-neutral-900 border border-neutral-800 text-neutral-200 hover:border-cyan-400/40 hover:text-cyan-300" variant="outline">
+                  Iniciar sesión
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[420px] bg-neutral-950 border-neutral-800 text-neutral-100 mx-4">
+                <DialogHeader>
+                  <DialogTitle>Iniciar sesión</DialogTitle>
+                </DialogHeader>
+                <form
+                  className="space-y-4"
+                  onSubmit={async (ev) => {
+                    ev.preventDefault();
+                    if (loggingIn) return;
+                    setLoginError(null);
+                    const fd = new FormData(ev.currentTarget as HTMLFormElement);
+                    const clave = String(fd.get("clave") || "");
+                    if (!clave) {
+                      setLoginError("Ingresa la clave.");
+                      return;
+                    }
+                    try {
+                      setLoggingIn(true);
+                      const res = await fetch("/api/auth/login", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ clave }),
+                      });
+                      if (!res.ok) {
+                        const j = await res.json().catch(() => ({}));
+                        setLoginError(j?.error || res.statusText);
+                        return;
+                      }
+                      setOpenLogin(false);
+                      queryClient.invalidateQueries({ queryKey: ["me"] });
+                    } finally {
+                      setLoggingIn(false);
+                    }
+                  }}
+                >
+                  <div>
+                    <label className="text-sm text-neutral-300">Clave</label>
+                    <Input name="clave" type="password" required className="mt-1" />
+                  </div>
+                  {loginError && <div className="text-sm text-red-400">{loginError}</div>}
+                  <div className="flex justify-end">
+                    <Button disabled={loggingIn} type="submit" className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50">
+                      {loggingIn ? "Entrando..." : "Entrar"}
+                    </Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+          ) : (
+            <Button
+              className="bg-neutral-900 border border-neutral-800 text-neutral-200 hover:border-red-400/40 hover:text-red-300"
+              variant="outline"
+              onClick={async () => {
+                await fetch("/api/auth/logout", { method: "POST" });
+                queryClient.invalidateQueries({ queryKey: ["me"] });
+              }}
+            >
+              Cerrar sesión ({me.nombre})
+            </Button>
+          )}
           <Select
             onValueChange={(v) => {
               const t = new Date();
@@ -549,7 +640,12 @@ export default function Home() {
         </div>
       </div>
 
-      {isLoading || isFetching ? (
+      {!me ? (
+        <div className="bg-neutral-900/60 border border-neutral-800 rounded-xl p-8 text-center">
+          <div className="text-xl text-white font-semibold mb-2">Inicia sesión para ver el dashboard</div>
+          <div className="text-neutral-300">Presiona “Iniciar sesión” en la parte superior.</div>
+        </div>
+      ) : isLoading || isFetching ? (
         <div className="animate-pulse space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -760,18 +856,34 @@ export default function Home() {
 
           <div className="w-full bg-neutral-900/60 backdrop-blur rounded-xl border border-neutral-800 shadow-[0_0_30px_rgba(0,0,0,0.3)] mb-8 p-6">
             <div className="mb-6">
-              <h3 className="text-2xl font-bold text-white font-sans tracking-wide">Resumen por Métodos de Adquisición</h3>
-              <p className="text-neutral-300/80 text-sm mt-1">Métricas de rendimiento por fuente de tráfico</p>
-              <div className="mt-4">
-                <Input
-                  placeholder="Buscar creativo..."
-                  className="bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm placeholder:text-white"
-                  value={creativoFilter}
-                  onChange={(ev) => setCreativoFilter(ev.target.value)}
-                />
+              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+                <div>
+                  <h3 className="text-2xl font-bold text-white font-sans tracking-wide">Resumen por Métodos de Adquisición</h3>
+                  <p className="text-neutral-300/80 text-sm mt-1">Métricas de rendimiento por fuente de tráfico</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setAdquisicionOpen((v) => !v)}
+                    className="bg-neutral-900 border-neutral-800 text-white hover:bg-neutral-800 hover:text-white"
+                  >
+                    {adquisicionOpen ? "Ocultar" : "Mostrar"}
+                  </Button>
+                </div>
               </div>
+              {adquisicionOpen && (
+                <div className="mt-4">
+                  <Input
+                    placeholder="Buscar creativo..."
+                    className="bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm placeholder:text-white"
+                    value={creativoFilter}
+                    onChange={(ev) => setCreativoFilter(ev.target.value)}
+                  />
+                </div>
+              )}
             </div>
             
+            {adquisicionOpen && (
             <div className="overflow-x-auto">
               <div className="min-w-full hidden md:block">
                 {/* Header */}
@@ -1039,6 +1151,7 @@ export default function Home() {
                 })()}
               </div>
             </div>
+            )}
           </div>
 
           <Card className="bg-neutral-900/60 backdrop-blur border border-neutral-800 mb-8 transition-all duration-300 hover:shadow-[0_0_0_1px_rgba(56,189,248,0.25),0_20px_60px_-15px_rgba(56,189,248,0.35)]">
@@ -1066,13 +1179,25 @@ export default function Home() {
                         </div>
                       </AccordionTrigger>
                       <AccordionContent>
-                        <div className="mb-3">
+                        <div className="mb-3 flex flex-col sm:flex-row gap-2">
                           <input
                             placeholder="Buscar lead..."
-                            className="w-full bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm placeholder:text-white"
+                            className="w-full sm:flex-1 bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm placeholder:text-white"
                             value={closerFilter[c.closer] ?? ''}
                             onChange={(ev) => setCloserFilter((prev) => ({ ...prev, [c.closer]: ev.target.value }))}
                           />
+                          <select
+                            className="w-full sm:w-56 bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm text-white"
+                            value={closerStatusFilter[c.closer] ?? 'all'}
+                            onChange={(ev) => setCloserStatusFilter((prev) => ({ ...prev, [c.closer]: ev.target.value }))}
+                          >
+                            <option value="all">Todas</option>
+                            <option value="asistidas">Asistidas</option>
+                            <option value="no_show">No Show</option>
+                            <option value="cerrada">Cerrada</option>
+                            <option value="ofertada">Ofertada</option>
+                            <option value="no_ofertada">No_Ofertada</option>
+                          </select>
                         </div>
                         <div className="overflow-x-auto">
                           <Table>
@@ -1091,8 +1216,23 @@ export default function Home() {
                             <TableBody>
                               {calls.filter((e) => {
                                 const q = (closerFilter[c.closer] ?? '').toLowerCase().trim();
-                                if (!q) return true;
-                                return (e.cliente ?? '').toLowerCase().includes(q);
+                                const status = (closerStatusFilter[c.closer] ?? 'all');
+                                const byText = !q || (e.cliente ?? '').toLowerCase().includes(q);
+                                if (!byText) return false;
+                                const normalizedCat = (e.categoria ?? '')
+                                  .toString()
+                                  .toLowerCase()
+                                  .replace(/[\s]+/g, '_')
+                                  .trim();
+                                const esNoShow = e.tipo_registro === 'no_show';
+                                if (status === 'all') return true;
+                                if (status === 'no_show') return esNoShow;
+                                if (status === 'asistidas') return !esNoShow;
+                                // categorías específicas (solo aplican a asistidas)
+                                if (status === 'cerrada') return !esNoShow && normalizedCat === 'cerrada';
+                                if (status === 'ofertada') return !esNoShow && normalizedCat === 'ofertada';
+                                if (status === 'no_ofertada') return !esNoShow && normalizedCat === 'no_ofertada';
+                                return true;
                               }).map((e) => {
                                 const esNoShow = e.tipo_registro === 'no_show';
                                 return (

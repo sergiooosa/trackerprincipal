@@ -71,6 +71,15 @@ POSTGRES_PASSWORD=your-secure-password
 NEXT_PUBLIC_CLIENT_ID=2
 NEXT_PUBLIC_CLIENT_TIMEZONE=America/Bogota
 NEXT_PUBLIC_CLIENT_NAME=Cliente Demo
+ 
+# IA (server-side)
+GEMINI_API_KEY=
+OPENAI_API_KEY=
+
+# Autenticación del dashboard (server-side)
+SUPERADMIN_PASS=
+SESSION_SECRET=
+WEBHOOK_FATHOM=
 ```
 
 Archivo local (no se sube): `.env.local` con los mismos nombres y valores reales.
@@ -251,4 +260,20 @@ Fecha: 2025-11-25
   - `POST /api/eventos/revivir`: recibe `id_registro_agenda` y los mismos campos del formulario (sin `nota_meta`), actualiza `resumenes_diarios_agendas.categoria` y crea el evento real.
 - Entorno:
   - Nuevas envs: `GEMINI_API_KEY`, `OPENAI_API_KEY` (ver DEPLOY.md). 
+
+Fecha: 2025-12-09
+
+- Autenticación y permisos:
+  - Cookie de sesión HttpOnly firmada (JWT) por 24h (`SESSION_SECRET`).
+  - Superadmin bootstrap via `SUPERADMIN_PASS`.
+  - Endpoints: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`.
+  - CRUD de usuarios: `GET/POST /api/usuarios`, `PATCH/DELETE /api/usuarios/:id`.
+  - Webhooks Fathom: creación/eliminación con `WEBHOOK_FATHOM` y API key por usuario.
+  - Logs en `historial_acciones`: LOGIN/LOGOUT/CREATE_USER/UPDATE_USER/DELETE_USER.
+- UI:
+  - Header: botón Iniciar/Cerrar sesión; acceso a “Usuarios” si rol=superadmin.
+  - “Resumen por Métodos de Adquisición”: toggle Mostrar/Ocultar y buscador.
+  - Leaderboard: filtro por categoría (Todas, Asistidas, No Show, Cerrada, Ofertada, No_Ofertada).
+- Eventos:
+  - Al crear llamada, se sincroniza la categoría en `resumenes_diarios_agendas` (registro más reciente por email e id_cuenta).
 
