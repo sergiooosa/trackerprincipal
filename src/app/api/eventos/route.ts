@@ -33,6 +33,17 @@ export async function POST(req: NextRequest) {
     if (!me) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
+
+    // Verificar permiso para agregar llamadas
+    if (me.rol !== "superadmin") {
+      const permisos = me.permisos as Record<string, { enabled?: boolean; items?: Record<string, boolean> }> | undefined;
+      const grupo = permisos?.['acciones_llamadas'];
+      const tienePermiso = grupo?.items?.agregar === true || grupo?.enabled === true;
+      if (!tienePermiso) {
+        return NextResponse.json({ error: "No tienes permiso para agregar llamadas" }, { status: 403 });
+      }
+    }
+
     const body = await req.json();
     const required = [
       "id_cuenta",

@@ -86,6 +86,16 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  // Verificar permiso para editar métricas
+  if (me.rol !== "superadmin") {
+    const permisos = me.permisos as Record<string, { enabled?: boolean; items?: Record<string, boolean> }> | undefined;
+    const grupo = permisos?.['editar_metricas_ads'];
+    const tienePermiso = grupo?.items?.edit === true || grupo?.enabled === true;
+    if (!tienePermiso) {
+      return NextResponse.json({ error: "No tienes permiso para editar métricas de publicidad" }, { status: 403 });
+    }
+  }
+
   try {
     const body = await req.json();
     const { campo, cambios } = body as {

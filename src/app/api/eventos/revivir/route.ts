@@ -23,6 +23,17 @@ export async function POST(req: NextRequest) {
     if (!me) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
+
+    // Verificar permiso para revivir llamadas
+    if (me.rol !== "superadmin") {
+      const permisos = me.permisos as Record<string, { enabled?: boolean; items?: Record<string, boolean> }> | undefined;
+      const grupo = permisos?.['acciones_llamadas'];
+      const tienePermiso = grupo?.items?.revivir === true || grupo?.enabled === true;
+      if (!tienePermiso) {
+        return NextResponse.json({ error: "No tienes permiso para revivir llamadas" }, { status: 403 });
+      }
+    }
+
     const body = await req.json();
     const required = [
       "id_registro_agenda",

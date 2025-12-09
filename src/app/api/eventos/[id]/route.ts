@@ -105,6 +105,17 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   if (!me) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
+
+  // Verificar permiso para borrar llamadas
+  if (me.rol !== "superadmin") {
+    const permisos = me.permisos as Record<string, { enabled?: boolean; items?: Record<string, boolean> }> | undefined;
+    const grupo = permisos?.['acciones_llamadas'];
+    const tienePermiso = grupo?.items?.borrar === true || grupo?.enabled === true;
+    if (!tienePermiso) {
+      return NextResponse.json({ error: "No tienes permiso para borrar llamadas" }, { status: 403 });
+    }
+  }
+
   const { id } = await ctx.params;
   if (!id) {
     return NextResponse.json({ error: "Falta id del evento" }, { status: 400 });
