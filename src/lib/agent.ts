@@ -828,6 +828,39 @@ LIMIT 20;`;
       // Si no hay query corregida, agregar instrucción para reintentar
       conversationText += `\n**ERROR EN HERRAMIENTA PREVIA:** ${result.error}\n`;
       conversationText += `\n⚠️ CRÍTICO: Hubo un error. DEBES generar una nueva query corregida. NO des respuestas genéricas. SIEMPRE intenta de nuevo con una query diferente que use las columnas correctas.\n`;
+      
+      // Si pregunta por show rate y hay error, dar query específica
+      if (lastUserMsg?.toLowerCase().includes("show rate") || lastUserMsg?.toLowerCase().includes("showrate")) {
+        const desdeFecha = effectiveDateRange.start;
+        const hastaFecha = effectiveDateRange.end;
+        const showRateQuery = `SELECT 
+  COUNT(*) FILTER (
+    WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada')
+  ) AS asistieron,
+  COUNT(*) FILTER (
+    WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada','no_show')
+  ) AS total_esperado,
+  CASE 
+    WHEN COUNT(*) FILTER (
+      WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada','no_show')
+    ) = 0 
+    THEN 0 
+    ELSE ROUND((
+      COUNT(*) FILTER (
+        WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada')
+      )::numeric / 
+      NULLIF(COUNT(*) FILTER (
+        WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada','no_show')
+      ), 0)
+    ) * 100, 1)
+  END as show_rate_real
+FROM resumenes_diarios_agendas
+WHERE id_cuenta = ${idCuenta}
+  AND (("fecha de la reunion" AT TIME ZONE '${timezone}')::date) BETWEEN '${desdeFecha}'::date AND '${hastaFecha}'::date;`;
+        
+        conversationText += `\n**QUERY CORREGIDA PARA SHOW RATE:**\n\`\`\`sql\n${showRateQuery}\n\`\`\`\n`;
+        conversationText += `\nEjecuta esta query exacta. Es la MISMA que usa el dashboard.\n`;
+      }
     } else {
       // Resultado exitoso - procesar normalmente
       const resultStr = JSON.stringify(lastToolResult, null, 2);
@@ -1026,6 +1059,10 @@ IMPORTANTE:
     lastUserMsgLower.includes("reuniones") ||
     lastUserMsgLower.includes("closer") ||
     lastUserMsgLower.includes("anuncio") ||
+    lastUserMsgLower.includes("show rate") ||
+    lastUserMsgLower.includes("showrate") ||
+    lastUserMsgLower.includes("close rate") ||
+    lastUserMsgLower.includes("closerate") ||
     lastUserMsgLower.includes("desde") && lastUserMsgLower.includes("hasta") ||
     lastUserMsgLower.includes("última semana") ||
     lastUserMsgLower.includes("este mes") ||
@@ -1064,9 +1101,36 @@ IMPORTANTE:
     
     // Analizar qué tipo de query necesita basándose en el contexto
     let suggestedQuery = "";
-        
-        // Detectar tipo de pregunta y generar query sugerida
-        if (lastUserMsgLower.includes("objeción") || lastUserMsgLower.includes("objeciones")) {
+    
+    // PRIORIDAD 1: Show Rate - SIEMPRE ejecutar si se menciona
+    if (lastUserMsgLower.includes("show rate") || lastUserMsgLower.includes("showrate")) {
+      const desdeFecha = effectiveDateRange.start;
+      const hastaFecha = effectiveDateRange.end;
+      suggestedQuery = `SELECT 
+  COUNT(*) FILTER (
+    WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada')
+  ) AS asistieron,
+  COUNT(*) FILTER (
+    WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada','no_show')
+  ) AS total_esperado,
+  CASE 
+    WHEN COUNT(*) FILTER (
+      WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada','no_show')
+    ) = 0 
+    THEN 0 
+    ELSE ROUND((
+      COUNT(*) FILTER (
+        WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada')
+      )::numeric / 
+      NULLIF(COUNT(*) FILTER (
+        WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada','no_show')
+      ), 0)
+    ) * 100, 1)
+  END as show_rate_real
+FROM resumenes_diarios_agendas
+WHERE id_cuenta = ${idCuenta}
+  AND (("fecha de la reunion" AT TIME ZONE '${timezone}')::date) BETWEEN '${desdeFecha}'::date AND '${hastaFecha}'::date;`;
+    } else if (lastUserMsgLower.includes("objeción") || lastUserMsgLower.includes("objeciones")) {
           suggestedQuery = `SELECT 
   jsonb_array_elements_text(objeciones_ia->'objeciones') as objeccion,
   COUNT(*) as frecuencia
@@ -1200,39 +1264,51 @@ WHERE id_cuenta = ${idCuenta}
   AND (fecha_hora_evento AT TIME ZONE '${timezone}')::date >= CURRENT_DATE - INTERVAL '7 days';`;
     } else if (lastUserMsgLower.includes("show rate") || lastUserMsgLower.includes("showrate")) {
       // Show Rate = (Asistidas / Total Esperado) × 100 - FÓRMULA EXACTA DEL DASHBOARD
-      // Extraer fechas si las menciona
+      // Esta es la MISMA query que usa el dashboard en la tarjeta "Reuniones asistidas (show rate)"
+      
+      // Determinar rango de fechas
       const currentYear = new Date().getFullYear();
-      let dateFilter = `(("fecha de la reunion" AT TIME ZONE '${timezone}')::date) >= CURRENT_DATE - INTERVAL '7 days'`;
+      let desdeFecha = "CURRENT_DATE - INTERVAL '7 days'";
+      let hastaFecha = "CURRENT_DATE";
       
-      // Detectar "del X al Y de [mes]"
-      const datePattern = /del?\s*(\d{1,2})\s*(?:al|al\s*)?(\d{1,2})?\s*(?:de\s*)?(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)?/i;
-      const dateMatch = lastUserMsg?.match(datePattern);
-      
-      if (dateMatch) {
-        const day1 = parseInt(dateMatch[1]);
-        const day2 = dateMatch[2] ? parseInt(dateMatch[2]) : day1;
-        const monthName = dateMatch[3]?.toLowerCase();
+      // Si hay rango por defecto del dashboard, usarlo
+      if (defaultDateRange) {
+        desdeFecha = `'${defaultDateRange.start.split('T')[0]}'::date`;
+        hastaFecha = `'${defaultDateRange.end.split('T')[0]}'::date`;
+      } else {
+        // Detectar "del X al Y de [mes]"
+        const datePattern = /del?\s*(\d{1,2})\s*(?:al|al\s*)?(\d{1,2})?\s*(?:de\s*)?(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)?/i;
+        const dateMatch = lastUserMsg?.match(datePattern);
         
-        if (monthName) {
-          const monthMap: Record<string, number> = {
-            'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4, 'mayo': 5, 'junio': 6,
-            'julio': 7, 'agosto': 8, 'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
-          };
-          const month = monthMap[monthName];
-          if (month) {
-            const startDate = `${currentYear}-${String(month).padStart(2, '0')}-${String(day1).padStart(2, '0')}`;
-            const endDate = `${currentYear}-${String(month).padStart(2, '0')}-${String(day2).padStart(2, '0')}`;
-            dateFilter = `(("fecha de la reunion" AT TIME ZONE '${timezone}')::date) BETWEEN '${startDate}' AND '${endDate}'`;
+        if (dateMatch) {
+          const day1 = parseInt(dateMatch[1]);
+          const day2 = dateMatch[2] ? parseInt(dateMatch[2]) : day1;
+          const monthName = dateMatch[3]?.toLowerCase();
+          
+          if (monthName) {
+            const monthMap: Record<string, number> = {
+              'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4, 'mayo': 5, 'junio': 6,
+              'julio': 7, 'agosto': 8, 'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
+            };
+            const month = monthMap[monthName];
+            if (month) {
+              desdeFecha = `'${currentYear}-${String(month).padStart(2, '0')}-${String(day1).padStart(2, '0')}'::date`;
+              hastaFecha = `'${currentYear}-${String(month).padStart(2, '0')}-${String(day2).padStart(2, '0')}'::date`;
+            }
           }
+        } else if (lastUserMsgLower.includes("última semana") || lastUserMsgLower.includes("ultima semana")) {
+          desdeFecha = "CURRENT_DATE - INTERVAL '7 days'";
+          hastaFecha = "CURRENT_DATE";
+        } else if (lastUserMsgLower.includes("este mes")) {
+          desdeFecha = "DATE_TRUNC('month', CURRENT_DATE)";
+          hastaFecha = "CURRENT_DATE";
+        } else if (lastUserMsgLower.includes("últimos 30 días") || lastUserMsgLower.includes("ultimos 30 dias")) {
+          desdeFecha = "CURRENT_DATE - INTERVAL '30 days'";
+          hastaFecha = "CURRENT_DATE";
         }
-      } else if (lastUserMsgLower.includes("última semana") || lastUserMsgLower.includes("ultima semana")) {
-        dateFilter = `(("fecha de la reunion" AT TIME ZONE '${timezone}')::date) >= CURRENT_DATE - INTERVAL '7 days'`;
-      } else if (lastUserMsgLower.includes("este mes")) {
-        dateFilter = `(("fecha de la reunion" AT TIME ZONE '${timezone}')::date) >= DATE_TRUNC('month', CURRENT_DATE)`;
-      } else if (lastUserMsgLower.includes("últimos 30 días") || lastUserMsgLower.includes("ultimos 30 dias")) {
-        dateFilter = `(("fecha de la reunion" AT TIME ZONE '${timezone}')::date) >= CURRENT_DATE - INTERVAL '30 days'`;
       }
       
+      // Query EXACTA del dashboard - replicando agendas_showrate
       suggestedQuery = `SELECT 
   COUNT(*) FILTER (
     WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada')
@@ -1249,14 +1325,14 @@ WHERE id_cuenta = ${idCuenta}
       COUNT(*) FILTER (
         WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada')
       )::numeric / 
-      COUNT(*) FILTER (
+      NULLIF(COUNT(*) FILTER (
         WHERE LOWER(TRIM(COALESCE(categoria, ''))) IN ('cerrada','ofertada','no_ofertada','no_show')
-      )
+      ), 0)
     ) * 100, 1)
   END as show_rate_real
 FROM resumenes_diarios_agendas
 WHERE id_cuenta = ${idCuenta}
-  AND ${dateFilter};`;
+  AND (("fecha de la reunion" AT TIME ZONE '${timezone}')::date) BETWEEN ${desdeFecha} AND ${hastaFecha};`;
     } else if (lastUserMsgLower.includes("anuncio") || lastUserMsgLower.includes("creativo") || lastUserMsgLower.includes("ganador")) {
       suggestedQuery = `SELECT 
   LOWER(TRIM(anuncio_origen)) as creativo,
