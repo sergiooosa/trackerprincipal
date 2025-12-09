@@ -310,4 +310,39 @@ Fecha: 2025-12-10
     - `src/lib/agent.ts`: Lógica del agente y herramientas
     - `src/app/api/chat/route.ts`: Endpoint POST /api/chat
     - `src/components/ChatWidget.tsx`: Componente React del widget
+  - **Mejoras recientes:**
+    - Sistema ultra-inteligente con detección de intención mejorada
+    - Forzado automático de tool calls cuando detecta que debe consultar datos
+    - Contexto temporal: usa rango de fechas del dashboard por defecto
+    - Cálculo correcto de Show Rate y Close Rate (misma fórmula que dashboard)
+    - Recursividad en búsqueda de IA (resumen_ia → objeciones_ia → reportmarketing)
+    - Persistencia de contexto: guarda queries ejecutadas para referencia futura
+    - Modelos mejorados: gemini-2.0-flash-exp y gpt-4o con fallbacks
+
+Fecha: 2025-12-11
+
+- Edición de métricas diarias de ads:
+  - **Funcionalidad:** Botón de lápiz pequeño al lado de tarjetas editables
+  - **Tarjetas editables:**
+    - Inversión en publicidad (`gasto_total_ad`)
+    - Impresiones (`impresiones_totales`)
+    - VSL PLAY RATE % (`play_rate`)
+    - VSL ENGAGEMENT % (`engagement`)
+    - CTR % (`ctr`) - promedio de valores diarios de la BD
+  - **API:** `GET/PATCH /api/ads-daily`
+    - GET: Obtiene datos diarios del rango (genera todas las fechas, incluso sin datos)
+    - PATCH: Actualiza múltiples registros con UPSERT (crea si no existe, actualiza si existe)
+    - Campos válidos: `gasto_total_ad`, `impresiones_totales`, `play_rate`, `engagement`, `ctr`
+  - **Modal de edición:**
+    - Diseño elegante acorde al dashboard
+    - Tabla con todos los días del rango seleccionado
+    - Inputs numéricos editables (step 1 para gasto/impresiones, 0.01 para porcentajes)
+    - Muestra valores reales de la BD (no solo 0)
+    - Botones Cancelar y Guardar cambios
+  - **Logging:**
+    - Registra cambios en `historial_acciones` con acción `EDITAR_METRICA_ADS`
+    - Incluye: campo editado, fecha, valor anterior, valor nuevo, usuario
+  - **Actualización automática:**
+    - Al guardar, invalida cache del dashboard
+    - Cambios se reflejan inmediatamente
 

@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const camposValidos = ['gasto_total_ad', 'impresiones_totales', 'play_rate', 'engagement'];
+    const camposValidos = ['gasto_total_ad', 'impresiones_totales', 'play_rate', 'engagement', 'ctr'];
     if (!camposValidos.includes(campo)) {
       return NextResponse.json(
         { error: "Campo inválido. Debe ser uno de: " + camposValidos.join(', ') },
@@ -43,8 +43,8 @@ export async function GET(req: NextRequest) {
     // Obtener datos existentes
     const query = `
       SELECT 
-        fecha,
-        ${campo} as valor
+        fecha::text as fecha,
+        COALESCE(${campo}, 0) as valor
       FROM resumenes_diarios_ads
       WHERE id_cuenta = $1
         AND fecha BETWEEN $2::date AND $3::date
@@ -52,9 +52,15 @@ export async function GET(req: NextRequest) {
     `;
 
     const result = await pool.query(query, [me.id_cuenta, fechaInicio, fechaFin]);
-    const datosExistentes = new Map(
-      result.rows.map(row => [row.fecha, row.valor ?? 0])
-    );
+    
+    // Normalizar fechas a formato YYYY-MM-DD para comparación
+    const datosExistentes = new Map<string, number>();
+    for (const row of result.rows) {
+      // La fecha viene como string en formato YYYY-MM-DD (por el ::text)
+      const fechaStr = String(row.fecha).split('T')[0];
+      const valor = row.valor !== null && row.valor !== undefined ? Number(row.valor) : 0;
+      datosExistentes.set(fechaStr, valor);
+    }
 
     // Combinar: todas las fechas con sus valores (0 si no existe)
     const datos = todasLasFechas.map(fecha => ({
@@ -87,7 +93,7 @@ export async function PATCH(req: NextRequest) {
       cambios: Array<{ fecha: string; valor: number }>;
     };
 
-    const camposValidos = ['gasto_total_ad', 'impresiones_totales', 'play_rate', 'engagement'];
+    const camposValidos = ['gasto_total_ad', 'impresiones_totales', 'play_rate', 'engagement', 'ctr'];
     if (!camposValidos.includes(campo)) {
       return NextResponse.json(
         { error: "Campo inválido" },
@@ -157,7 +163,8 @@ export async function PATCH(req: NextRequest) {
         'gasto_total_ad': 'Inversión en publicidad',
         'impresiones_totales': 'Impresiones',
         'play_rate': 'VSL PLAY RATE %',
-        'engagement': 'VSL ENGAGEMENT %'
+        'engagement': 'VSL ENGAGEMENT %',
+        'ctr': 'CTR %'
       }[campo] || campo;
 
       const detallesLog = {

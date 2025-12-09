@@ -292,7 +292,7 @@ function EditAdsMetricModal({
   clientId,
   onSuccess
 }: {
-  campo: 'gasto_total_ad' | 'impresiones_totales' | 'play_rate' | 'engagement';
+  campo: 'gasto_total_ad' | 'impresiones_totales' | 'play_rate' | 'engagement' | 'ctr';
   titulo: string;
   isOpen: boolean;
   onClose: () => void;
@@ -398,6 +398,7 @@ function EditAdsMetricModal({
                             value={dato.valor ?? 0}
                             onChange={(e) => updateValor(dato.fecha, parseFloat(e.target.value) || 0)}
                             className="bg-neutral-900 border-neutral-700 text-white w-32"
+                            min="0"
                           />
                         </TableCell>
                       </TableRow>
@@ -444,7 +445,7 @@ export default function Home() {
   const [creativoFilter, setCreativoFilter] = useState<string>("");
   const [adquisicionOpen, setAdquisicionOpen] = useState<boolean>(true);
   const [editModalOpen, setEditModalOpen] = useState<{
-    campo: 'gasto_total_ad' | 'impresiones_totales' | 'play_rate' | 'engagement' | null;
+    campo: 'gasto_total_ad' | 'impresiones_totales' | 'play_rate' | 'engagement' | 'ctr' | null;
     titulo: string;
   }>({ campo: null, titulo: '' });
   
@@ -995,7 +996,17 @@ export default function Home() {
             )}
             {canView(me, 'tarjetas', 'ctr') && (
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
-              <CardHeader><CardTitle className="text-white">CTR</CardTitle></CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-white">CTR</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-neutral-400 hover:text-cyan-300 hover:bg-cyan-500/10"
+                  onClick={() => setEditModalOpen({ campo: 'ctr', titulo: 'CTR %' })}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </CardHeader>
               <CardContent className="text-2xl font-semibold text-cyan-300">{Number(data?.kpis?.ctr ?? 0).toFixed(2)}%</CardContent>
             </Card>
             )}
