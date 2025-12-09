@@ -302,6 +302,14 @@ export default function Home() {
   const [openLogin, setOpenLogin] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [isInIframe, setIsInIframe] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+  
+  // Verificar si estamos en cliente y en iframe (solo en cliente)
+  useEffect(() => {
+    setIsClient(true);
+    setIsInIframe(typeof window !== "undefined" && window.self !== window.top);
+  }, []);
 
   const meQuery = useQuery<{ user: { nombre: string; rol: string; permisos?: Record<string, unknown> } | null }>({
     queryKey: ["me"],
@@ -335,8 +343,7 @@ export default function Home() {
 
   // Efecto para verificar sesión periódicamente cuando está en iframe (GHL)
   useEffect(() => {
-    const isInIframe = window.self !== window.top;
-    if (!isInIframe) return; // Solo en iframes
+    if (!isInIframe || !isClient) return; // Solo en iframes y en cliente
     
     console.log("[Frontend] Detectado iframe - iniciando verificación periódica de sesión");
     
@@ -360,7 +367,7 @@ export default function Home() {
     }, 2000);
     
     return () => clearInterval(interval);
-  }, [me, queryClient]);
+  }, [me, queryClient, isInIframe, isClient]);
 
   // Función auxiliar para verificar permisos
   const canView = (
@@ -804,12 +811,12 @@ export default function Home() {
           <div className="text-neutral-300 mb-4">Presiona &quot;Iniciar sesión&quot; en la parte superior.</div>
           
           {/* Debug info solo en desarrollo o si está en iframe */}
-          {(process.env.NODE_ENV === "development" || window.self !== window.top) && (
+          {isClient && (process.env.NODE_ENV === "development" || isInIframe) && (
             <div className="mt-4 p-4 bg-neutral-950 border border-neutral-700 rounded text-left text-xs text-neutral-400">
               <div className="font-semibold text-neutral-300 mb-2">🔍 Debug Info:</div>
-              <div>En iframe: {window.self !== window.top ? "Sí" : "No"}</div>
-              <div>Cookies: {document.cookie ? "Presentes" : "No hay cookies"}</div>
-              <div>Session token en cookies: {document.cookie.includes("session_token") ? "✅ Sí" : "❌ No"}</div>
+              <div>En iframe: {isInIframe ? "Sí" : "No"}</div>
+              <div>Cookies: {typeof document !== "undefined" && document.cookie ? "Presentes" : "No hay cookies"}</div>
+              <div>Session token en cookies: {typeof document !== "undefined" && document.cookie.includes("session_token") ? "✅ Sí" : "❌ No"}</div>
               <div>Query status: {meQuery.status}</div>
               <div>Query error: {meQuery.error ? String(meQuery.error) : "Ninguno"}</div>
               <div className="mt-2">
