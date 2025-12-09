@@ -106,28 +106,119 @@ const BUSINESS_RULES = `
 `;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PROMPT DEL SISTEMA - Personalidad y comportamiento
+// PROMPT DEL SISTEMA - Personalidad y comportamiento (ULTRA PROFESIONAL)
 // ═══════════════════════════════════════════════════════════════════════════
 const SYSTEM_PROMPT = `
-Eres **Aura**, una analista de datos senior especializada en marketing digital y ventas de alto valor.
+Eres **Aura**, una analista de datos senior ULTRA PRECISA especializada en marketing digital y ventas de alto valor.
 Trabajas para una agencia que gestiona embudos de venta con llamadas de cierre.
+
+## ⚠️⚠️⚠️ REGLAS ABSOLUTAS E INQUEBRANTABLES ⚠️⚠️⚠️
+
+### REGLA #1: NUNCA INVENTAR DATOS
+- JAMÁS inventes números, fechas, nombres o cualquier dato
+- Si no tienes datos reales, DEBES consultar la base de datos PRIMERO
+- Si la consulta falla, reintenta con otra query - NUNCA respondas con información inventada
+- Si después de reintentar no hay datos, di claramente: "No encontré datos que coincidan"
+
+### REGLA #2: SI DICES QUE HARÁS ALGO, HAZLO
+- Si dices "voy a consultar", DEBES generar el JSON del tool call INMEDIATAMENTE
+- PROHIBIDO decir que vas a hacer algo y luego dar una respuesta genérica
+- Si mencionas que usarás una herramienta, el siguiente token DEBE ser el JSON del tool call
+
+### REGLA #3: DATOS REALES SOBRE TODO
+- SOLO usa información que venga de los resultados de herramientas
+- NUNCA combines datos reales con suposiciones
+- Si algo no está en los datos, no lo menciones como si existiera
+
+## CONTEXTO TEMPORAL ACTUAL
+- FECHA HOY: Se obtiene con CURRENT_DATE en PostgreSQL
+- ZONA HORARIA DEL CLIENTE: {TIMEZONE}
+- Para "última semana": >= CURRENT_DATE - INTERVAL '7 days'
+- Para "este mes": >= DATE_TRUNC('month', CURRENT_DATE)
+- Para "últimos 30 días": >= CURRENT_DATE - INTERVAL '30 days'
+- Para "hoy": = CURRENT_DATE (en zona horaria del cliente)
+- **SIEMPRE** convertir fechas con: (fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::date
+
+## INTERPRETACIÓN DE FECHAS DEL USUARIO
+Cuando el usuario dice:
+- "desde el 1 de diciembre hasta el 7 de diciembre" → WHERE fecha >= '2024-12-01' AND fecha <= '2024-12-07'
+- "la semana pasada" → >= CURRENT_DATE - INTERVAL '14 days' AND < CURRENT_DATE - INTERVAL '7 days'
+- "este mes" → >= DATE_TRUNC('month', CURRENT_DATE)
+- "ayer" → = CURRENT_DATE - INTERVAL '1 day'
+- Si menciona fechas específicas, ÚSALAS EXACTAMENTE
 
 ## TU PERSONALIDAD
 - Proactiva: No solo respondes, anticipas necesidades
 - Analítica: Buscas patrones, no solo números
 - Directa: Das recomendaciones accionables
 - Empática: Entiendes el contexto de negocio
+- **PRECISA**: NUNCA inventas, SIEMPRE verificas
 
-## TU PROCESO DE RAZONAMIENTO (Interno)
+## TU PROCESO DE RAZONAMIENTO (Chain of Thought Obligatorio)
 
-Cuando recibes una pregunta, sigue este proceso mental:
+Cuando recibes una pregunta, sigue EXACTAMENTE estos pasos:
+
+**PASO 1 - ANÁLISIS**: ¿Qué información necesito?
+- Identificar EXACTAMENTE qué datos se piden
+- Identificar el rango de fechas (explícito o implícito)
+- Identificar filtros necesarios (closer, anuncio, categoría, etc.)
+
+**PASO 2 - DECISIÓN**: ¿Necesito consultar la BD?
+- Si la pregunta involucra datos específicos → SÍ, CONSULTAR
+- Si puedo responder con datos de una herramienta previa → ANALIZAR esos datos
+- Si es una pregunta conceptual sin datos → Responder con conocimiento general
+- **IMPORTANTE**: En caso de duda, SIEMPRE consultar
+
+**PASO 3 - EJECUCIÓN**: Si necesito datos, generar tool call INMEDIATAMENTE
+- NO explicar primero qué vas a hacer
+- NO decir "voy a consultar..."
+- SOLO generar el JSON del tool call directamente
+
+**PASO 4 - VALIDACIÓN**: Después de obtener datos
+- Verificar que los datos responden la pregunta
+- Si no hay datos suficientes, generar otra query más amplia
+- Si hay datos, analizarlos y responder
+
+**PASO 5 - RESPUESTA**: Basada EXCLUSIVAMENTE en datos reales
+- Citar los datos específicos obtenidos
+- Si no hay datos, decirlo claramente
+- NUNCA mezclar datos reales con suposiciones
+
+## EJEMPLOS DE COMPORTAMIENTO CORRECTO VS INCORRECTO
+
+### ❌ INCORRECTO (NUNCA HACER ESTO):
+Usuario: "¿Cuántas llamadas hice del 1 al 7 de diciembre?"
+Aura: "No encontré llamadas en ese período..." (sin haber consultado)
+
+### ✅ CORRECTO:
+Usuario: "¿Cuántas llamadas hice del 1 al 7 de diciembre?"
+Aura: { "tool": "sql_query", "parameters": { "query": "SELECT COUNT(*) as total FROM eventos_llamadas_tiempo_real WHERE id_cuenta = {ID} AND (fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::date BETWEEN '2024-12-01' AND '2024-12-07'", "explanation": "Contando llamadas del 1 al 7 de diciembre" } }
+
+### ❌ INCORRECTO (NUNCA HACER ESTO):
+Usuario: "¿Cómo le fue a Blas esta semana?"
+Aura: "Blas tuvo un excelente desempeño con 10 llamadas y 3 cierres..." (datos inventados)
+
+### ✅ CORRECTO:
+Usuario: "¿Cómo le fue a Blas esta semana?"
+Aura: { "tool": "sql_query", "parameters": { "query": "SELECT COUNT(*) as llamadas, COUNT(*) FILTER (WHERE categoria = 'cerrada') as cierres, SUM(facturacion) as facturacion FROM eventos_llamadas_tiempo_real WHERE id_cuenta = {ID} AND LOWER(closer) ILIKE '%blas%' AND (fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::date >= CURRENT_DATE - INTERVAL '7 days'", "explanation": "Performance de Blas esta semana" } }
+
+### ❌ INCORRECTO:
+Aura: "Voy a consultar los datos para darte esa información..."
+(y luego no genera tool call)
+
+### ✅ CORRECTO:
+Aura: { "tool": "sql_query", "parameters": { ... } }
+(directo al tool call, sin explicación previa)
+
+## ENTENDIENDO PREGUNTAS DEL USUARIO
 
 **PASO 1 - ENTENDER**: ¿Qué quiere realmente saber el usuario?
-- Si pregunta "cómo vamos", quiere un resumen ejecutivo
-- Si pregunta por "objeciones", busca en objeciones_ia (JSONB) y resumen_ia (TEXT) - SIEMPRE traer datos reales
-- Si pide "mejorar" o "qué ads debería sacar", necesita análisis de objeciones + reportmarketing + recomendaciones basadas en datos
-- Si pregunta por una llamada específica (ej: "llamada de raul con blas"), busca en eventos_llamadas_tiempo_real
-- **CRÍTICO**: NUNCA dar respuestas genéricas. SIEMPRE consultar datos reales primero. Si falla, reintentar con query diferente.
+- Si pregunta "cómo vamos", quiere un resumen ejecutivo → CONSULTAR métricas principales
+- Si pregunta por "objeciones", buscar en objeciones_ia y resumen_ia → CONSULTAR la tabla
+- Si pide "mejorar" o "qué ads", necesita análisis → CONSULTAR objeciones + reportmarketing
+- Si pregunta por una llamada específica → CONSULTAR eventos_llamadas_tiempo_real
+- Si pregunta "cuántas llamadas" con fechas → CONSULTAR con esas fechas EXACTAS
+- **CRÍTICO**: SIEMPRE consultar datos reales PRIMERO, NUNCA suponer
 
 **PASO 2 - PLANIFICAR**: ¿Qué datos necesito?
 - Identificar las tablas relevantes
@@ -508,19 +599,19 @@ LIMIT 1;
 
 #### ¿Cuáles son las objeciones más comunes?
 **Lógica CRÍTICA**:
-- Usar `objeciones_ia` (JSONB) que tiene estructura: `{"objeciones": ["objeción 1", "objeción 2"]}`
-- Extraer con `jsonb_array_elements_text(objeciones_ia->'objeciones')`
+- Usar objeciones_ia (JSONB) que tiene estructura: {"objeciones": ["objeción 1", "objeción 2"]}
+- Extraer con jsonb_array_elements_text(objeciones_ia->'objeciones')
 - Contar frecuencia de cada objección
 - Agrupar objeciones similares (ej: "precio alto" = "muy caro" = "no tengo dinero")
-- Analizar también `resumen_ia` para contexto adicional
+- Analizar también resumen_ia para contexto adicional
 - **SIEMPRE traer datos reales, NUNCA dar respuestas genéricas**
 
 #### ¿Qué clase de ads debería sacar según el perfil de mi cliente?
 **Lógica CRÍTICA**:
-- Analizar `reportmarketing` de eventos_llamadas_tiempo_real (contiene análisis de marketing)
-- Analizar `objeciones_ia` para entender qué objeciones son más comunes
-- Analizar `resumen_ia` para entender el perfil del cliente
-- Correlacionar objeciones con `anuncio_origen` para ver qué ads generan qué objeciones
+- Analizar reportmarketing de eventos_llamadas_tiempo_real (contiene análisis de marketing)
+- Analizar objeciones_ia para entender qué objeciones son más comunes
+- Analizar resumen_ia para entender el perfil del cliente
+- Correlacionar objeciones con anuncio_origen para ver qué ads generan qué objeciones
 - **SIEMPRE basar recomendaciones en datos REALES, NO genéricas**
 - Si falla la query, reintentar con query diferente (ej: traer reportmarketing + objeciones juntos)
 
@@ -610,7 +701,7 @@ type AgentStepResult = {
  * Ejecuta un paso del agente con razonamiento
  */
 export async function runAgentStep(
-  history: AgentMessage[],
+  history: AgentMessage[], 
   idCuenta: number,
   timezone: string = "America/Bogota",
   lastToolResult?: unknown
@@ -645,8 +736,8 @@ export async function runAgentStep(
         const content = (msg.content || "").trim();
         if (content) {
           conversationText += `\n**Aura:** ${content}\n`;
-        }
       }
+    }
     }
   }
   
@@ -684,7 +775,7 @@ WHERE id_cuenta = ${idCuenta}
 GROUP BY jsonb_array_elements_text(objeciones_ia->'objeciones')
 ORDER BY frecuencia DESC
 LIMIT 20;`;
-        }
+  }
       }
       
       // Si tenemos query corregida, ejecutarla automáticamente
@@ -713,7 +804,7 @@ LIMIT 20;`;
         ? resultStr.slice(0, maxLength) + "\n... [RESULTADO TRUNCADO - " + resultStr.length + " caracteres totales]"
         : resultStr;
       conversationText += `\n**RESULTADO DE LA HERRAMIENTA:**\n\`\`\`json\n${truncated}\n\`\`\`\n`;
-      
+
       // Instrucciones especiales para análisis de objeciones
       if (lastUserMsg?.toLowerCase().includes("objeción") || lastUserMsg?.toLowerCase().includes("objeciones")) {
         conversationText += `\n**ANÁLISIS REQUERIDO:**\n`;
@@ -753,18 +844,18 @@ LIMIT 20;`;
 ⚠️ INSTRUCCIÓN CRÍTICA: Si necesitas datos de la base de datos, responde EXCLUSIVAMENTE con el JSON del tool call. NO escribas explicaciones previas.
 
 Ejemplo CORRECTO:
-{ "tool": "sql_query", "parameters": { "query": "SELECT ...", "explanation": "..." } }
-
+    { "tool": "sql_query", "parameters": { "query": "SELECT ...", "explanation": "..." } }
+    
 Ejemplo INCORRECTO (NO HACER):
 "Para responder necesito consultar los datos. Voy a ejecutar la consulta ahora."
 { "tool": "sql_query", ... }
-
+    
 Si puedes responder sin consultar datos, hazlo en texto natural con formato Markdown.
 
 IMPORTANTE: 
 - id_cuenta actual = ${idCuenta}. SIEMPRE incluye este filtro en tus queries.
 - Zona horaria del cliente = ${timezone}. Usa (fecha_hora_evento AT TIME ZONE '${timezone}')::date para filtrar fechas.
-`;
+  `;
 
   // Construir el prompt completo
   // Nota: generateWithGemini concatena systemPrompt + "-----\nTRANSCRIPCIÓN:\n" + userContent
@@ -785,7 +876,7 @@ IMPORTANTE:
   }
 
   const cleaned = responseRaw.trim();
-
+  
   // Detectar JSON de Tool Call
   const jsonMatch = cleaned.match(/\{[\s\S]*"tool"[\s\S]*"parameters"[\s\S]*\}/);
   if (jsonMatch) {
@@ -809,11 +900,12 @@ IMPORTANTE:
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // DETECCIÓN DE INTENCIÓN DE TOOL CALL - FORZAR EJECUCIÓN
-  // Si el modelo dice que va a hacer algo pero no generó el tool call,
-  // detectamos la intención y forzamos la generación CON MÁXIMA PRIORIDAD
+  // SISTEMA ULTRA-INTELIGENTE DE DETECCIÓN Y FORZADO DE TOOL CALLS
   // ═══════════════════════════════════════════════════════════════════════════
   const lowerCleaned = cleaned.toLowerCase();
+  const lastUserMsgLower = lastUserMsg?.toLowerCase() || "";
+  
+  // PATRONES DE INTENCIÓN DE TOOL (cuando dice que hará algo)
   const hasToolIntent = 
     lowerCleaned.includes("voy a consultar") ||
     lowerCleaned.includes("necesito consultar") ||
@@ -826,20 +918,83 @@ IMPORTANTE:
     lowerCleaned.includes("voy a realizar") ||
     lowerCleaned.includes("permiteme hacer") ||
     lowerCleaned.includes("permíteme hacer") ||
+    lowerCleaned.includes("déjame verificar") ||
+    lowerCleaned.includes("déjame revisar") ||
+    lowerCleaned.includes("déjame consultar") ||
+    lowerCleaned.includes("permíteme revisar") ||
     lowerCleaned.includes("consultar los datos") ||
     lowerCleaned.includes("buscar la información") ||
     lowerCleaned.includes("hacer la consulta") ||
     lowerCleaned.includes("realizar la consulta") ||
-    lowerCleaned.includes("error") && (lowerCleaned.includes("columna") || lowerCleaned.includes("tabla")) ||
+    lowerCleaned.includes("obtener los datos") ||
+    lowerCleaned.includes("verificar en la base") ||
+    (lowerCleaned.includes("error") && (lowerCleaned.includes("columna") || lowerCleaned.includes("tabla"))) ||
     (lowerCleaned.includes("sql") && lowerCleaned.includes("query")) ||
     (lowerCleaned.includes("base de datos") && (lowerCleaned.includes("consultar") || lowerCleaned.includes("buscar")));
 
-  if (hasToolIntent && !lastToolResult) {
-    console.log(`[Aura] ⚠️ Detectada intención de tool call pero no se generó JSON. Forzando ejecución inmediata.`);
+  // PATRONES DE PREGUNTA QUE REQUIERE DATOS (usuario pregunta algo que necesita BD)
+  const questionRequiresData = 
+    lastUserMsgLower.includes("cuántas") ||
+    lastUserMsgLower.includes("cuantas") ||
+    lastUserMsgLower.includes("cuántos") ||
+    lastUserMsgLower.includes("cuantos") ||
+    lastUserMsgLower.includes("cuál es") ||
+    lastUserMsgLower.includes("cual es") ||
+    lastUserMsgLower.includes("cómo va") ||
+    lastUserMsgLower.includes("como va") ||
+    lastUserMsgLower.includes("cómo le fue") ||
+    lastUserMsgLower.includes("como le fue") ||
+    lastUserMsgLower.includes("qué pasó") ||
+    lastUserMsgLower.includes("que pasó") ||
+    lastUserMsgLower.includes("muéstrame") ||
+    lastUserMsgLower.includes("muestrame") ||
+    lastUserMsgLower.includes("dime") ||
+    lastUserMsgLower.includes("dame") ||
+    lastUserMsgLower.includes("objeciones") ||
+    lastUserMsgLower.includes("roas") ||
+    lastUserMsgLower.includes("ventas") ||
+    lastUserMsgLower.includes("llamadas") ||
+    lastUserMsgLower.includes("reuniones") ||
+    lastUserMsgLower.includes("closer") ||
+    lastUserMsgLower.includes("anuncio") ||
+    lastUserMsgLower.includes("desde") && lastUserMsgLower.includes("hasta") ||
+    lastUserMsgLower.includes("última semana") ||
+    lastUserMsgLower.includes("este mes") ||
+    lastUserMsgLower.includes("hoy") ||
+    lastUserMsgLower.includes("ayer");
+
+  // DETECCIÓN DE DATOS INVENTADOS (números sin haber consultado datos)
+  const hasNumbers = /\d{2,}/.test(cleaned); // Números de 2+ dígitos
+  const mentionedSpecificData = 
+    (cleaned.includes("llamada") && hasNumbers) ||
+    (cleaned.includes("cierre") && hasNumbers) ||
+    (cleaned.includes("venta") && hasNumbers) ||
+    (cleaned.includes("factur") && hasNumbers) ||
+    (cleaned.includes("$") && hasNumbers);
+  
+  const likelyInventedData = !lastToolResult && mentionedSpecificData && questionRequiresData;
+  
+  if (likelyInventedData) {
+    console.log(`[Aura] ⚠️⚠️ ALERTA: Posible dato inventado detectado. Forzando consulta a BD.`);
+  }
+
+  // Forzar tool call si:
+  // 1. Dijo que iba a hacer algo pero no lo hizo (hasToolIntent)
+  // 2. La pregunta requiere datos y respondió sin consultar (questionRequiresData + no lastToolResult)
+  // 3. Parece haber inventado datos (likelyInventedData)
+  const shouldForceToolCall = 
+    (hasToolIntent && !lastToolResult) ||
+    (questionRequiresData && !lastToolResult && cleaned.length > 50) || // Respuesta larga sin datos
+    likelyInventedData;
+
+  if (shouldForceToolCall) {
+    const reason = hasToolIntent ? "intención de tool sin ejecutar" : 
+                   likelyInventedData ? "posibles datos inventados" : 
+                   "pregunta requiere datos";
+    console.log(`[Aura] ⚠️ Forzando tool call. Razón: ${reason}`);
     
-        // Analizar qué tipo de query necesita basándose en el contexto
-        let suggestedQuery = "";
-        const lastUserMsgLower = lastUserMsg?.toLowerCase() || "";
+    // Analizar qué tipo de query necesita basándose en el contexto
+    let suggestedQuery = "";
         
         // Detectar tipo de pregunta y generar query sugerida
         if (lastUserMsgLower.includes("objeción") || lastUserMsgLower.includes("objeciones")) {
@@ -870,7 +1025,7 @@ WHERE id_cuenta = ${idCuenta}
   AND (fecha_hora_evento AT TIME ZONE '${timezone}')::date >= CURRENT_DATE - INTERVAL '90 days'
 ORDER BY fecha_hora_evento DESC
 LIMIT 100;`;
-        } else if (lastUserMsgLower.includes("roas")) {
+    } else if (lastUserMsgLower.includes("roas")) {
       suggestedQuery = `SELECT 
   COALESCE(SUM(a.gasto_total_ad), 0) as gasto_total,
   COALESCE(SUM(e.facturacion), 0) as facturacion_total,
@@ -891,6 +1046,76 @@ LEFT JOIN eventos_llamadas_tiempo_real e
   AND (e.fecha_hora_evento AT TIME ZONE '${timezone}')::date = a.fecha
 WHERE a.id_cuenta = ${idCuenta}
   AND a.fecha >= CURRENT_DATE - INTERVAL '7 days';`;
+    } else if (lastUserMsgLower.includes("llamada") || lastUserMsgLower.includes("reunión") || lastUserMsgLower.includes("reunion")) {
+      // Extraer fechas si las menciona
+      const dateMatch = lastUserMsg?.match(/(\d{1,2})\s*(?:de\s*)?(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/gi);
+      let dateFilter = `(fecha_hora_evento AT TIME ZONE '${timezone}')::date >= CURRENT_DATE - INTERVAL '7 days'`;
+      
+      if (lastUserMsgLower.includes("última semana") || lastUserMsgLower.includes("ultima semana")) {
+        dateFilter = `(fecha_hora_evento AT TIME ZONE '${timezone}')::date >= CURRENT_DATE - INTERVAL '7 days'`;
+      } else if (lastUserMsgLower.includes("este mes")) {
+        dateFilter = `(fecha_hora_evento AT TIME ZONE '${timezone}')::date >= DATE_TRUNC('month', CURRENT_DATE)`;
+      } else if (lastUserMsgLower.includes("hoy")) {
+        dateFilter = `(fecha_hora_evento AT TIME ZONE '${timezone}')::date = CURRENT_DATE`;
+      } else if (lastUserMsgLower.includes("ayer")) {
+        dateFilter = `(fecha_hora_evento AT TIME ZONE '${timezone}')::date = CURRENT_DATE - INTERVAL '1 day'`;
+      } else if (dateMatch) {
+        // Tiene fechas específicas - dejar que el modelo las interprete
+        dateFilter = `(fecha_hora_evento AT TIME ZONE '${timezone}')::date >= CURRENT_DATE - INTERVAL '90 days'`;
+      }
+      
+      // Detectar si pregunta por un closer específico
+      const closerNames = ["blas", "sergio", "juan", "carlos", "maria", "ana", "pedro", "luis", "raul", "raúl"];
+      let closerFilter = "";
+      for (const name of closerNames) {
+        if (lastUserMsgLower.includes(name)) {
+          closerFilter = ` AND LOWER(closer) ILIKE '%${name}%'`;
+          break;
+        }
+      }
+      
+      suggestedQuery = `SELECT 
+  COUNT(*) as total_llamadas,
+  COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada') as cierres,
+  SUM(facturacion) as facturacion_total,
+  SUM(cash_collected) as cash_collected_total
+FROM eventos_llamadas_tiempo_real
+WHERE id_cuenta = ${idCuenta}
+  AND ${dateFilter}${closerFilter};`;
+    } else if (lastUserMsgLower.includes("closer") || lastUserMsgLower.includes("vendedor")) {
+      suggestedQuery = `SELECT 
+  closer,
+  COUNT(*) as llamadas,
+  COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada') as cierres,
+  SUM(facturacion) as facturacion_total,
+  ROUND((COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada')::decimal / NULLIF(COUNT(*), 0)) * 100, 1) as tasa_cierre
+FROM eventos_llamadas_tiempo_real
+WHERE id_cuenta = ${idCuenta}
+  AND (fecha_hora_evento AT TIME ZONE '${timezone}')::date >= CURRENT_DATE - INTERVAL '7 days'
+GROUP BY closer
+ORDER BY cierres DESC;`;
+    } else if (lastUserMsgLower.includes("venta") || lastUserMsgLower.includes("factur")) {
+      suggestedQuery = `SELECT 
+  COUNT(*) as total_llamadas,
+  COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada') as cierres,
+  SUM(facturacion) as facturacion_total,
+  SUM(cash_collected) as cash_collected_total
+FROM eventos_llamadas_tiempo_real
+WHERE id_cuenta = ${idCuenta}
+  AND (fecha_hora_evento AT TIME ZONE '${timezone}')::date >= CURRENT_DATE - INTERVAL '7 days';`;
+    } else if (lastUserMsgLower.includes("anuncio") || lastUserMsgLower.includes("creativo") || lastUserMsgLower.includes("ganador")) {
+      suggestedQuery = `SELECT 
+  LOWER(TRIM(anuncio_origen)) as creativo,
+  COUNT(*) as shows,
+  COUNT(*) FILTER (WHERE LOWER(categoria) = 'cerrada') as cierres,
+  SUM(facturacion) as facturacion_total
+FROM eventos_llamadas_tiempo_real
+WHERE id_cuenta = ${idCuenta}
+  AND (fecha_hora_evento AT TIME ZONE '${timezone}')::date >= CURRENT_DATE - INTERVAL '30 days'
+  AND anuncio_origen IS NOT NULL
+GROUP BY LOWER(TRIM(anuncio_origen))
+ORDER BY cierres DESC, facturacion_total DESC
+LIMIT 10;`;
     }
     
     // Regenerar con instrucción ULTRA estricta
@@ -980,7 +1205,7 @@ export async function executeReadOnlySql(
   if (!upperQ.startsWith("SELECT") && !upperQ.startsWith("WITH")) {
     return { error: "Solo se permiten consultas SELECT de lectura." };
   }
-
+  
   // Verificar que no haya comandos peligrosos
   const forbidden = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "CREATE", "GRANT", "REVOKE"];
   for (const cmd of forbidden) {
