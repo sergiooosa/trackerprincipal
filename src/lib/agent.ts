@@ -210,13 +210,230 @@ SELECT closer, cliente, resumen_ia FROM eventos_llamadas_tiempo_real
 WHERE id_cuenta = {ID} AND resumen_ia IS NOT NULL AND resumen_ia != ''
 ORDER BY fecha_hora_evento DESC LIMIT 10;
 
-### Creativos con mejor performance
-SELECT COALESCE(NULLIF(origen, ''), 'organico') as creativo,
-  COUNT(*) as agendas,
-  COUNT(*) FILTER (WHERE categoria IN ('Cerrada','Ofertada','No_Ofertada')) as asistieron
-FROM resumenes_diarios_agendas
+### ⭐ Anuncio ganador (por VENTAS/ROAS, NO por agendas)
+-- CRÍTICO: El "anuncio ganador" se determina por VENTAS o ROAS, NO por número de agendas
+-- Ordenar por facturación total o ROAS, no por agendas
+SELECT 
+  LOWER(TRIM(anuncio_origen)) as creativo,
+  COUNT(*) FILTER (WHERE categoria = 'cerrada') as cierres,
+  SUM(facturacion) as facturacion_total,
+  SUM(cash_collected) as cash_collected_total,
+  COUNT(*) as shows
+FROM eventos_llamadas_tiempo_real
 WHERE id_cuenta = {ID}
-GROUP BY 1 ORDER BY asistieron DESC;
+  AND (fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::date >= CURRENT_DATE - INTERVAL '7 days'
+  AND anuncio_origen IS NOT NULL
+GROUP BY LOWER(TRIM(anuncio_origen))
+ORDER BY facturacion_total DESC, cierres DESC
+LIMIT 1;
+
+### ⭐ ROAS por anuncio (usar gasto de resumenes_diarios_creativos)
+-- CRÍTICO: Para ROAS, usar facturacion de eventos_llamadas_tiempo_real y gasto de resumenes_diarios_creativos
+SELECT 
+  LOWER(TRIM(c.nombre_de_creativo)) as creativo,
+  COALESCE(SUM(c.gasto_total_creativo), 0) as gasto_total,
+  COALESCE(SUM(e.facturacion), 0) as facturacion_total,
+  CASE 
+    WHEN COALESCE(SUM(c.gasto_total_creativo), 0) > 0 
+    THEN ROUND((COALESCE(SUM(e.facturacion), 0) / SUM(c.gasto_total_creativo))::numeric, 2)
+    ELSE 0
+  END as roas
+FROM resumenes_diarios_creativos c
+LEFT JOIN eventos_llamadas_tiempo_real e 
+  ON LOWER(TRIM(c.nombre_de_creativo)) = LOWER(TRIM(e.anuncio_origen))
+  AND c.id_cuenta = e.id_cuenta
+  AND (e.fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::date = c.fecha
+WHERE c.id_cuenta = {ID}
+  AND c.fecha >= CURRENT_DATE - INTERVAL '7 days'
+GROUP BY LOWER(TRIM(c.nombre_de_creativo))
+ORDER BY roas DESC;
+
+### ⭐ Reuniones por closer (usar eventos_llamadas_tiempo_real)
+-- CRÍTICO: Para contar reuniones de un closer, usar eventos_llamadas_tiempo_real, NO resumenes_diarios_agendas
+SELECT 
+  closer,
+  COUNT(*) as reuniones,
+  COUNT(*) FILTER (WHERE categoria = 'cerrada') as cierres,
+  SUM(facturacion) as facturacion_total
+FROM eventos_llamadas_tiempo_real
+WHERE id_cuenta = {ID}
+  AND (fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::date >= CURRENT_DATE - INTERVAL '7 days'
+  AND LOWER(closer) ILIKE '%blas%'
+GROUP BY closer;
+
+### ⭐ Anuncio que debería apagar (alto gasto + bajo ROAS)
+SELECT 
+  LOWER(TRIM(c.nombre_de_creativo)) as creativo,
+  COALESCE(SUM(c.gasto_total_creativo), 0) as gasto_total,
+  COALESCE(SUM(e.facturacion), 0) as facturacion_total,
+  COUNT(*) FILTER (WHERE e.categoria = 'cerrada') as cierres,
+  CASE 
+    WHEN COALESCE(SUM(c.gasto_total_creativo), 0) > 0 
+    THEN ROUND((COALESCE(SUM(e.facturacion), 0) / SUM(c.gasto_total_creativo))::numeric, 2)
+    ELSE 0
+  END as roas,
+  CASE 
+    WHEN COUNT(*) FILTER (WHERE e.categoria = 'cerrada') > 0
+    THEN ROUND((COALESCE(SUM(c.gasto_total_creativo), 0) / COUNT(*) FILTER (WHERE e.categoria = 'cerrada'))::numeric, 2)
+    ELSE NULL
+  END as cac
+FROM resumenes_diarios_creativos c
+LEFT JOIN eventos_llamadas_tiempo_real e 
+  ON LOWER(TRIM(c.nombre_de_creativo)) = LOWER(TRIM(e.anuncio_origen))
+  AND c.id_cuenta = e.id_cuenta
+  AND (e.fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::date = c.fecha
+WHERE c.id_cuenta = {ID}
+  AND c.fecha >= CURRENT_DATE - INTERVAL '30 days'
+GROUP BY LOWER(TRIM(c.nombre_de_creativo))
+HAVING COALESCE(SUM(c.gasto_total_creativo), 0) > 100 -- Solo anuncios con gasto significativo
+ORDER BY roas ASC, cac DESC NULLS LAST
+LIMIT 5;
+
+### ⭐ Anuncio con mejor tasa de cierre
+SELECT 
+  LOWER(TRIM(anuncio_origen)) as creativo,
+  COUNT(*) as shows,
+  COUNT(*) FILTER (WHERE categoria = 'cerrada') as cierres,
+  ROUND((COUNT(*) FILTER (WHERE categoria = 'cerrada')::decimal / NULLIF(COUNT(*), 0)) * 100, 1) as tasa_cierre_pct
+FROM eventos_llamadas_tiempo_real
+WHERE id_cuenta = {ID}
+  AND (fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::date >= CURRENT_DATE - INTERVAL '30 days'
+  AND anuncio_origen IS NOT NULL
+GROUP BY LOWER(TRIM(anuncio_origen))
+HAVING COUNT(*) >= 5 -- Mínimo 5 shows para ser relevante
+ORDER BY tasa_cierre_pct DESC
+LIMIT 1;
+
+### ⭐ Anuncio que trae personas que no asisten (alto volumen de agendas, bajo show rate)
+SELECT 
+  COALESCE(NULLIF(LOWER(TRIM(a.origen)), ''), 'organico') as creativo,
+  COUNT(DISTINCT a.id_registro_agenda) as agendas,
+  COUNT(DISTINCT e.id_evento) as shows,
+  ROUND((COUNT(DISTINCT e.id_evento)::decimal / NULLIF(COUNT(DISTINCT a.id_registro_agenda), 0)) * 100, 1) as show_rate
+FROM resumenes_diarios_agendas a
+LEFT JOIN eventos_llamadas_tiempo_real e
+  ON LOWER(TRIM(a.origen)) = LOWER(TRIM(e.anuncio_origen))
+  AND a.id_cuenta = e.id_cuenta
+  AND a.email_lead = e.email_lead
+WHERE a.id_cuenta = {ID}
+  AND a.fecha >= CURRENT_DATE - INTERVAL '30 days'
+  AND a.categoria NOT IN ('Cancelada', 'PDTE')
+GROUP BY COALESCE(NULLIF(LOWER(TRIM(a.origen)), ''), 'organico')
+HAVING COUNT(DISTINCT a.id_registro_agenda) >= 10 -- Mínimo 10 agendas
+ORDER BY show_rate ASC, agendas DESC
+LIMIT 5;
+
+### ⭐ Closer con mejor/peor tasa de cierre
+SELECT 
+  closer,
+  COUNT(*) as shows,
+  COUNT(*) FILTER (WHERE categoria = 'cerrada') as cierres,
+  ROUND((COUNT(*) FILTER (WHERE categoria = 'cerrada')::decimal / NULLIF(COUNT(*), 0)) * 100, 1) as tasa_cierre_pct,
+  SUM(facturacion) as facturacion_total
+FROM eventos_llamadas_tiempo_real
+WHERE id_cuenta = {ID}
+  AND (fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::date >= CURRENT_DATE - INTERVAL '30 days'
+GROUP BY closer
+HAVING COUNT(*) >= 5 -- Mínimo 5 shows para ser relevante
+ORDER BY tasa_cierre_pct DESC; -- Para mejor, ASC para peor
+
+### ⭐ Closer que facturó más esta semana
+SELECT 
+  closer,
+  SUM(facturacion) as facturacion_total,
+  SUM(cash_collected) as cash_collected_total,
+  COUNT(*) FILTER (WHERE categoria = 'cerrada') as cierres
+FROM eventos_llamadas_tiempo_real
+WHERE id_cuenta = {ID}
+  AND (fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::date >= DATE_TRUNC('week', CURRENT_DATE)
+GROUP BY closer
+ORDER BY facturacion_total DESC
+LIMIT 1;
+
+## CATEGORÍAS DE PREGUNTAS COMUNES Y SUS LÓGICAS
+
+### 📊 ANUNCIOS Y PUBLICIDAD
+
+#### ¿Qué anuncio debería apagar? / ¿Qué anuncio no me rinde?
+**Lógica**: Revisar anuncios con:
+- Alto gasto en resumenes_diarios_creativos.gasto_total_creativo
+- Alto CAC (Costo por Adquisición de Cliente) = gasto / cierres
+- ROAS bajo = facturacion / gasto < 3x
+- Ordenar por ROAS ASC (peor primero) o CAC DESC (mayor primero)
+
+#### ¿Qué anuncio me trae personas que no asisten?
+**Lógica**: Comparar agendas vs shows
+- Agendas desde resumenes_diarios_agendas (origen = creativo)
+- Shows desde eventos_llamadas_tiempo_real (anuncio_origen = creativo)
+- Calcular show_rate = shows / agendas
+- Si un anuncio genera muchas agendas pero casi ningún show, es el peor en asistencia
+- Ordenar por show_rate ASC (peor primero)
+
+#### ¿Qué anuncio me trae leads que no compran?
+**Lógica**: Comparar agendas vs cierres
+- Alto volumen de agendas pero muy bajo porcentaje de cierre
+- Calcular close_rate = cierres / agendas
+- Ordenar por close_rate ASC (peor primero)
+
+#### ¿Qué anuncio tiene la mejor tasa de cierre?
+**Lógica**: Revisar la relación entre cierres y agendas por anuncio
+- Calcular close_rate = cierres / shows (o agendas si se pregunta por agendas)
+- Ordenar por close_rate DESC (mejor primero)
+
+#### ¿Cuál es mi anuncio ganador? / ¿Cuál es mi mejor anuncio?
+**Lógica CRÍTICA**: El anuncio ganador se determina por:
+- **VENTAS (facturación total)** - NO por número de agendas
+- **ROAS (Return on Ad Spend)** - facturacion / gasto
+- **Número de cierres** - como métrica secundaria
+- Ordenar por facturacion_total DESC o roas DESC, NO por agendas DESC
+
+### 👥 CLOSERS Y VENTAS
+
+#### ¿Qué closer tiene mejor/peor tasa de cierre?
+**Lógica**: Calcular cierres / shows por cada closer
+- Cierres = COUNT(*) FILTER (WHERE categoria = 'cerrada')
+- Shows = COUNT(*) de eventos_llamadas_tiempo_real
+- close_rate = cierres / shows * 100
+- Para mejor: ORDER BY close_rate DESC
+- Para peor: ORDER BY close_rate ASC
+
+#### ¿Qué closer facturó más esta semana?
+**Lógica**: Sumar el facturacion (o cash_collected) asignado a cada closer
+- Usar eventos_llamadas_tiempo_real
+- SUM(facturacion) GROUP BY closer
+- Filtrar por semana actual: fecha >= DATE_TRUNC('week', CURRENT_DATE)
+- Ordenar por facturacion_total DESC
+
+#### ¿Quién desaprovechó más agendas?
+**Lógica**: Comparar agendas asignadas vs cierres
+- Agendas desde resumenes_diarios_agendas (closer)
+- Cierres desde eventos_llamadas_tiempo_real (closer)
+- Calcular diferencia: agendas - cierres
+- El que más perdió es el menos eficiente
+- Ordenar por (agendas - cierres) DESC
+
+#### ¿Qué closer tiene la tasa de no-show más alta?
+**Lógica**: Comparar agendas asignadas vs shows realizados
+- Agendas desde resumenes_diarios_agendas (closer)
+- Shows desde eventos_llamadas_tiempo_real (closer)
+- Calcular no_show_rate = (agendas - shows) / agendas * 100
+- El mayor porcentaje de no-shows es el peor
+- Ordenar por no_show_rate DESC
+
+### 💰 MÉTRICAS FINANCIERAS
+
+#### ¿Cuál es mi ROAS de la última semana?
+**Lógica CRÍTICA**: 
+- Facturación desde eventos_llamadas_tiempo_real.facturacion
+- Gasto desde resumenes_diarios_ads.gasto (total) o resumenes_diarios_creativos.gasto_total_creativo (por creativo)
+- ROAS = SUM(facturacion) / SUM(gasto)
+- Filtrar por última semana: fecha >= CURRENT_DATE - INTERVAL '7 days'
+
+#### ¿Cuál es mi CAC?
+**Lógica**:
+- Gasto total desde resumenes_diarios_ads.gasto o resumenes_diarios_creativos.gasto_total_creativo
+- Cierres desde eventos_llamadas_tiempo_real WHERE categoria = 'cerrada'
+- CAC = SUM(gasto) / COUNT(cierres)
 
 ## TIPS IMPORTANTES PARA BÚSQUEDAS
 - **Siempre usa ILIKE con %** para nombres: ILIKE '%nombre%' (no = 'nombre')
@@ -225,6 +442,9 @@ GROUP BY 1 ORDER BY asistieron DESC;
 - **SIEMPRE usa zona horaria**: (fecha_hora_evento AT TIME ZONE '{TIMEZONE}')::date para fechas
 - **Si no encuentras resultados específicos**: trae TODOS los registros recientes (últimos 60 días) y analiza con IA para encontrar coincidencias
 - **Si aún no encuentras nada**: sugiere al usuario ampliar el rango de tiempo o verificar los nombres
+- **CRÍTICO**: Para "anuncio ganador" o "mejor anuncio", SIEMPRE usar ventas/ROAS, NUNCA solo número de agendas
+- **CRÍTICO**: Para ROAS, usar gasto de resumenes_diarios_ads o resumenes_diarios_creativos, NO buscar columna "gasto" en otras tablas
+- **CRÍTICO**: Para reuniones de un closer, usar eventos_llamadas_tiempo_real donde closer = nombre, NO buscar en otras tablas
 
 ## FORMATO DE RESPUESTA - ⚠️ CRÍTICO
 
