@@ -509,7 +509,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [me, queryClient, isInIframe, isClient]);
 
-  // Función auxiliar para verificar permisos
+  // Función auxiliar para verificar permisos de visualización
   const canView = (
     u: typeof me, 
     section: 'tarjetas' | 'graficas' | 'adquisicion' | 'leaderboard', 
@@ -551,6 +551,36 @@ export default function Home() {
     }
     
     return false;
+  };
+
+  // Función auxiliar para verificar permisos de acciones
+  const canAction = (
+    u: typeof me,
+    section: 'editar_metricas_ads' | 'chatbot' | 'acciones_llamadas',
+    action: string
+  ): boolean => {
+    if (!u) return false;
+    if (u.rol === "superadmin") return true;
+    
+    // Si no tiene permisos definidos (legacy), permitimos por compatibilidad
+    if (!u.permisos || Object.keys(u.permisos).length === 0) return true;
+
+    // Validar estructura de permisos
+    const p = u.permisos as Record<string, { enabled?: boolean; items?: Record<string, boolean> }> | undefined;
+    if (!p) return true;
+
+    const group = p[section];
+    
+    // Si la sección no existe en los permisos, permitimos por defecto
+    if (!group) return true;
+
+    // Verificar el item específico de la acción
+    if (group.items && action in group.items) {
+      return group.items[action] === true;
+    }
+
+    // Si el item no está definido, usamos el estado global de la sección
+    return group.enabled !== false;
   };
 
   const { data, isLoading, isError, isFetching, error } = useQuery<ApiResponse>({
@@ -998,14 +1028,16 @@ export default function Home() {
             <Card className="bg-gradient-to-br from-[#0b1220] to-[#0b0f19] border border-[#1b2a4a] shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_10px_40px_-10px_rgba(59,130,246,0.3)]">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-white">CTR</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-neutral-400 hover:text-cyan-300 hover:bg-cyan-500/10"
-                  onClick={() => setEditModalOpen({ campo: 'ctr', titulo: 'CTR %' })}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
+                {canAction(me, 'editar_metricas_ads', 'edit') && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-neutral-400 hover:text-cyan-300 hover:bg-cyan-500/10"
+                    onClick={() => setEditModalOpen({ campo: 'ctr', titulo: 'CTR %' })}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="text-2xl font-semibold text-cyan-300">{Number(data?.kpis?.ctr ?? 0).toFixed(2)}%</CardContent>
             </Card>
@@ -1807,7 +1839,9 @@ export default function Home() {
                                     {!esNoShow && (
                                       <Dialog>
                                         <DialogTrigger asChild>
-                                          <Button variant="outline" className="bg-neutral-900 border-neutral-800 text-neutral-200 hover:border-red-400/40 hover:text-red-300">Borrar llamada</Button>
+                                          {canAction(me, 'acciones_llamadas', 'borrar') && (
+                                            <Button variant="outline" className="bg-neutral-900 border-neutral-800 text-neutral-200 hover:border-red-400/40 hover:text-red-300">Borrar llamada</Button>
+                                          )}
                                         </DialogTrigger>
                                         <DialogContent className="sm:max-w-[520px] bg-neutral-950 border-neutral-800 text-neutral-100 mx-4">
                                           <DialogHeader>

@@ -38,7 +38,9 @@ export default function RootLayout({
           </div>
         </div>
         <Providers>{children}</Providers>
-        <ChatWidget />
+        {typeof window !== 'undefined' && process.env.NEXT_PUBLIC_CHATBOT_ENABLED === 'true' && (
+          <ChatWidget />
+        )}
       </body>
     </html>
   );

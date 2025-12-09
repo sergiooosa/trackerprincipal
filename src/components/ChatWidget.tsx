@@ -5,6 +5,7 @@ import { Bot, X, Send, FileSpreadsheet, Sparkles, RefreshCw, MessageSquare } fro
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useDateRange } from "@/contexts/DateRangeContext";
+import { useQuery } from "@tanstack/react-query";
 
 type Message = {
   role: "user" | "model";
@@ -28,6 +29,36 @@ const SUGGESTIONS = [
 export default function ChatWidget() {
   const { startDate, endDate } = useDateRange();
   const [isOpen, setIsOpen] = useState(false);
+  
+  // Verificar permisos del usuario
+  const meQuery = useQuery<{ user: { nombre: string; rol: string; permisos?: Record<string, unknown> } | null }>({
+    queryKey: ["auth-me"],
+    queryFn: async () => {
+      const res = await fetch("/api/auth/me", { credentials: "include" });
+      if (!res.ok) return { user: null };
+      return res.json();
+    },
+  });
+
+  const canViewChatbot = () => {
+    const me = meQuery.data?.user;
+    if (!me) return false;
+    if (me.rol === "superadmin") return true;
+    if (!me.permisos || Object.keys(me.permisos).length === 0) return true;
+    const p = me.permisos as Record<string, { enabled?: boolean; items?: Record<string, boolean> }> | undefined;
+    if (!p) return true;
+    const group = p['chatbot'];
+    if (!group) return true;
+    if (group.items && 'view' in group.items) {
+      return group.items['view'] === true;
+    }
+    return group.enabled !== false;
+  };
+
+  // No renderizar si no tiene permisos o si el chatbot está deshabilitado
+  if (process.env.NEXT_PUBLIC_CHATBOT_ENABLED !== 'true' || !canViewChatbot()) {
+    return null;
+  }
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "model",

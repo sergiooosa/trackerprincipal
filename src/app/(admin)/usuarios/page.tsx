@@ -28,6 +28,9 @@ type PermissionsState = {
   graficas: PermissionGroupState;
   adquisicion: PermissionGroupState;
   leaderboard: PermissionGroupState;
+  editar_metricas_ads: PermissionGroupState;
+  chatbot: PermissionGroupState;
+  acciones_llamadas: PermissionGroupState;
 };
 
 const ITEMS_TARJETAS = [
@@ -68,6 +71,21 @@ const ITEMS_LEADERBOARD = [
   { key: "view", label: "Visualización General" },
 ];
 
+const ITEMS_EDITAR_METRICAS_ADS = [
+  { key: "edit", label: "Editar métricas de publicidad" },
+];
+
+const ITEMS_CHATBOT = [
+  { key: "view", label: "Acceso al chatbot" },
+];
+
+const ITEMS_ACCIONES_LLAMADAS = [
+  { key: "agregar", label: "Agregar llamadas" },
+  { key: "editar", label: "Editar llamadas" },
+  { key: "borrar", label: "Borrar llamadas" },
+  { key: "revivir", label: "Revivir no shows" },
+];
+
 const INITIAL_PERMISOS: PermissionsState = {
   tarjetas: {
     enabled: true,
@@ -84,6 +102,18 @@ const INITIAL_PERMISOS: PermissionsState = {
   leaderboard: {
     enabled: true,
     items: ITEMS_LEADERBOARD.reduce((acc, i) => ({ ...acc, [i.key]: true }), {}),
+  },
+  editar_metricas_ads: {
+    enabled: true,
+    items: ITEMS_EDITAR_METRICAS_ADS.reduce((acc, i) => ({ ...acc, [i.key]: true }), {}),
+  },
+  chatbot: {
+    enabled: true,
+    items: ITEMS_CHATBOT.reduce((acc, i) => ({ ...acc, [i.key]: true }), {}),
+  },
+  acciones_llamadas: {
+    enabled: true,
+    items: ITEMS_ACCIONES_LLAMADAS.reduce((acc, i) => ({ ...acc, [i.key]: true }), {}),
   },
 };
 
@@ -195,8 +225,8 @@ export default function UsuariosAdmin() {
         if (editingUser.rol === 'usuario' && editingUser.permisos) {
           // Fusionar permisos guardados con la estructura actual (para no romper si hay nuevos items)
           const merged = { ...INITIAL_PERMISOS };
-          // Deep merge simple para los 4 grupos
-          (['tarjetas', 'graficas', 'adquisicion', 'leaderboard'] as const).forEach(key => {
+          // Deep merge simple para todos los grupos
+          (['tarjetas', 'graficas', 'adquisicion', 'leaderboard', 'editar_metricas_ads', 'chatbot', 'acciones_llamadas'] as const).forEach(key => {
             const savedGroup = editingUser.permisos?.[key];
             if (savedGroup) {
               merged[key] = {
@@ -406,6 +436,30 @@ export default function UsuariosAdmin() {
                       itemsConfig={ITEMS_LEADERBOARD}
                       onGroupChange={(v) => handleGroupChange("leaderboard", v)}
                       onItemChange={(k, v) => handleItemChange("leaderboard", k, v)}
+                    />
+
+                    <SectionGroup
+                      title="Edición de Métricas de Publicidad"
+                      groupState={permisos.editar_metricas_ads}
+                      itemsConfig={ITEMS_EDITAR_METRICAS_ADS}
+                      onGroupChange={(v) => handleGroupChange("editar_metricas_ads", v)}
+                      onItemChange={(k, v) => handleItemChange("editar_metricas_ads", k, v)}
+                    />
+
+                    <SectionGroup
+                      title="Chatbot Aura"
+                      groupState={permisos.chatbot}
+                      itemsConfig={ITEMS_CHATBOT}
+                      onGroupChange={(v) => handleGroupChange("chatbot", v)}
+                      onItemChange={(k, v) => handleItemChange("chatbot", k, v)}
+                    />
+
+                    <SectionGroup
+                      title="Acciones de Llamadas"
+                      groupState={permisos.acciones_llamadas}
+                      itemsConfig={ITEMS_ACCIONES_LLAMADAS}
+                      onGroupChange={(v) => handleGroupChange("acciones_llamadas", v)}
+                      onItemChange={(k, v) => handleItemChange("acciones_llamadas", k, v)}
                     />
                   </div>
                 )}

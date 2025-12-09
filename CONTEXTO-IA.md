@@ -345,4 +345,34 @@ Fecha: 2025-12-11
   - **Actualización automática:**
     - Al guardar, invalida cache del dashboard
     - Cambios se reflejan inmediatamente
+  - **Permisos:**
+    - Grupo: `editar_metricas_ads`
+    - Item: `edit` (boolean)
+    - Superadmin tiene acceso automático
+    - Validación en frontend (botones de lápiz) y backend (API `/api/ads-daily`)
+
+- Sistema de permisos extendido:
+  - **Nuevos grupos de permisos:**
+    1. `editar_metricas_ads`: Permite editar métricas diarias de publicidad
+       - Item: `edit`
+    2. `chatbot`: Controla acceso al chatbot Aura
+       - Item: `view`
+    3. `acciones_llamadas`: Controla acciones sobre llamadas
+       - Items: `agregar`, `editar`, `borrar`, `revivir`
+  - **Estructura:**
+    - Cada grupo tiene `enabled` (boolean) e `items` (Record<string, boolean>)
+    - Superadmin tiene todos los permisos automáticamente
+    - Usuarios regulares requieren permisos explícitos
+  - **Validaciones:**
+    - Frontend: Función `canAction(u, section, action)` verifica permisos antes de mostrar botones
+    - Backend: Validación en endpoints API antes de ejecutar acciones
+    - Endpoints protegidos:
+      - `GET/PATCH /api/ads-daily`: Requiere `editar_metricas_ads.edit`
+      - `POST /api/eventos`: Requiere `acciones_llamadas.agregar`
+      - `DELETE /api/eventos/:id`: Requiere `acciones_llamadas.borrar`
+      - `POST /api/eventos/revivir`: Requiere `acciones_llamadas.revivir`
+  - **UI de administración:**
+    - Panel de usuarios (`/usuarios`) muestra nuevos grupos de permisos
+    - Secciones colapsables con switches individuales
+    - Compatibilidad con permisos legacy (si no existen, se permiten por defecto)
 
