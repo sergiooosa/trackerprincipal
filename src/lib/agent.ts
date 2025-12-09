@@ -288,7 +288,7 @@ IMPORTANTE: id_cuenta actual = ${idCuenta}. SIEMPRE incluye este filtro en tus q
   if (jsonMatch) {
     try {
       // Limpiar bloques de código markdown
-      let jsonStr = jsonMatch[0]
+      const jsonStr = jsonMatch[0]
         .replace(/```json/g, "")
         .replace(/```/g, "")
         .trim();
@@ -314,7 +314,7 @@ IMPORTANTE: id_cuenta actual = ${idCuenta}. SIEMPRE incluye este filtro en tus q
  */
 export async function executeReadOnlySql(
   query: string, 
-  idCuenta: number
+  _idCuenta: number // Prefijo _ indica que es para referencia futura (RLS)
 ): Promise<{ rows?: unknown[]; error?: string; rowCount?: number }> {
   const q = query.trim();
   
