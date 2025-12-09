@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format, formatISO, startOfDay, endOfDay } from "date-fns";
 import { useDateRange } from "@/contexts/DateRangeContext";

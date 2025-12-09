@@ -57,13 +57,6 @@ export default function ChatWidget() {
     }
     return group.enabled !== false;
   };
-
-  // Verificar si debe renderizar (después de todos los hooks)
-  const shouldRender = canViewChatbot();
-  
-  if (!shouldRender) {
-    return null;
-  }
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "model",
@@ -163,9 +156,7 @@ export default function ChatWidget() {
   };
 
   // Verificar si debe renderizar (después de todos los hooks)
-  const shouldRender = canViewChatbot();
-  
-  if (!shouldRender) {
+  if (!canViewChatbot()) {
     return null;
   }
 
