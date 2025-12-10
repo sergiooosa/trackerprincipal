@@ -7,6 +7,21 @@ import { Card } from "@/components/ui/card";
 import { useDateRange } from "@/contexts/DateRangeContext";
 import { useQuery } from "@tanstack/react-query";
 
+// Componente wrapper para asegurar que solo se renderice en el cliente
+function ChatWidgetClient() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return null;
+  }
+
+  return <ChatWidget />;
+}
+
 type Message = {
   role: "user" | "model";
   content: string;
@@ -357,3 +372,5 @@ export default function ChatWidget() {
     </>
   );
 }
+
+export default ChatWidgetClient;

@@ -37,8 +37,10 @@ export default function RootLayout({
             <div className="text-sm font-medium text-white">{clientName}</div>
           </div>
         </div>
-        <Providers>{children}</Providers>
-        <ChatWidget />
+        <Providers>
+          {children}
+          <ChatWidget />
+        </Providers>
       </body>
     </html>
   );
