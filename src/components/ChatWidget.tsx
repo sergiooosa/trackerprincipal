@@ -41,7 +41,7 @@ const SUGGESTIONS = [
   "Muéstrame los creativos con más agendas",
 ];
 
-export default function ChatWidgetInternal() {
+function ChatWidgetInternal() {
   const { startDate, endDate } = useDateRange();
   const [isOpen, setIsOpen] = useState(false);
   
