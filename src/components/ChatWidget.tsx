@@ -45,16 +45,28 @@ export default function ChatWidget() {
     if (process.env.NEXT_PUBLIC_CHATBOT_ENABLED !== 'true') return false;
     
     const me = meQuery.data?.user;
-    if (!me) return false;
+    // Si no hay usuario logueado, mostrar el chat por defecto
+    if (!me) return true;
+    
+    // Superadmin siempre puede ver
     if (me.rol === "superadmin") return true;
+    
+    // Si no tiene permisos definidos (legacy), permitir por compatibilidad
     if (!me.permisos || Object.keys(me.permisos).length === 0) return true;
+    
     const p = me.permisos as Record<string, { enabled?: boolean; items?: Record<string, boolean> }> | undefined;
     if (!p) return true;
+    
     const group = p['chatbot'];
+    // Si el grupo no existe, permitir por defecto
     if (!group) return true;
+    
+    // Verificar el item específico 'view'
     if (group.items && 'view' in group.items) {
       return group.items['view'] === true;
     }
+    
+    // Si no hay item específico, usar el estado global del grupo
     return group.enabled !== false;
   };
   const [messages, setMessages] = useState<Message[]>([
