@@ -41,32 +41,41 @@ export default function ChatWidget() {
   });
 
   const canViewChatbot = () => {
-    // Verificar variable de entorno primero
+    // Verificar variable de entorno primero - si no está habilitado, no mostrar
     if (process.env.NEXT_PUBLIC_CHATBOT_ENABLED !== 'true') return false;
     
+    // Por defecto, mostrar el chat (más permisivo)
+    // Solo ocultar si el usuario tiene permisos explícitos que lo deshabiliten
+    
     const me = meQuery.data?.user;
-    // Si no hay usuario logueado, mostrar el chat por defecto
+    
+    // Si no hay usuario logueado, mostrar el chat
     if (!me) return true;
     
     // Superadmin siempre puede ver
     if (me.rol === "superadmin") return true;
     
-    // Si no tiene permisos definidos (legacy), permitir por compatibilidad
+    // Si no tiene permisos definidos, mostrar por defecto
     if (!me.permisos || Object.keys(me.permisos).length === 0) return true;
     
     const p = me.permisos as Record<string, { enabled?: boolean; items?: Record<string, boolean> }> | undefined;
     if (!p) return true;
     
     const group = p['chatbot'];
-    // Si el grupo no existe, permitir por defecto
+    // Si el grupo no existe en permisos, mostrar por defecto
     if (!group) return true;
     
-    // Verificar el item específico 'view'
+    // Si el grupo está explícitamente deshabilitado (enabled: false) Y no hay items, ocultar
+    if (group.enabled === false && (!group.items || Object.keys(group.items).length === 0)) {
+      return false;
+    }
+    
+    // Verificar el item específico 'view' si existe
     if (group.items && 'view' in group.items) {
       return group.items['view'] === true;
     }
     
-    // Si no hay item específico, usar el estado global del grupo
+    // Si enabled es true o no está definido, mostrar
     return group.enabled !== false;
   };
   const [messages, setMessages] = useState<Message[]>([
