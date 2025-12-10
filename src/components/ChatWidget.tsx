@@ -19,7 +19,7 @@ function ChatWidgetClient() {
     return null;
   }
 
-  return <ChatWidget />;
+  return <ChatWidgetInternal />;
 }
 
 type Message = {
@@ -41,7 +41,7 @@ const SUGGESTIONS = [
   "Muéstrame los creativos con más agendas",
 ];
 
-export default function ChatWidget() {
+export default function ChatWidgetInternal() {
   const { startDate, endDate } = useDateRange();
   const [isOpen, setIsOpen] = useState(false);
   
