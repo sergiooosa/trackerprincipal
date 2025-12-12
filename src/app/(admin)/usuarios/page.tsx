@@ -10,6 +10,7 @@ type UserRow = {
   id_evento: number;
   id_cuenta: number;
   nombre: string;
+  email?: string | null;
   rol: "superadmin" | "usuario";
   permisos?: PermissionsState | null; // Tipado más específico
   fathom?: string | null;
@@ -317,6 +318,7 @@ export default function UsuariosAdmin() {
 
                   const payload = {
                     nombre: String(fd.get("nombre") || "").trim(),
+                    email: String(fd.get("email") || "").trim() || undefined,
                     pass: passVal || undefined, // undefined para no enviar si está vacío en edit
                     rol: rolSel,
                     permisos: rolSel === "superadmin" ? {} : permisos,
@@ -363,6 +365,16 @@ export default function UsuariosAdmin() {
                       className="bg-neutral-900 border-neutral-800" 
                       placeholder="Ej. Juan Perez"
                       defaultValue={editingUser?.nombre || ""} 
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-neutral-400 font-medium mb-1 block">Correo Electrónico</label>
+                    <Input 
+                      name="email" 
+                      type="email"
+                      className="bg-neutral-900 border-neutral-800" 
+                      placeholder="usuario@ejemplo.com"
+                      defaultValue={editingUser?.email || ""} 
                     />
                   </div>
                   <div>
@@ -507,6 +519,7 @@ export default function UsuariosAdmin() {
                 <tr className="text-neutral-400 border-b border-neutral-800">
                   <th className="py-3 px-4 font-medium">ID</th>
                   <th className="py-3 px-4 font-medium">Nombre</th>
+                  <th className="py-3 px-4 font-medium">Correo</th>
                   <th className="py-3 px-4 font-medium">Rol</th>
                   <th className="py-3 px-4 font-medium">Fathom Webhook</th>
                   <th className="py-3 px-4 text-right font-medium">Acciones</th>
@@ -517,6 +530,7 @@ export default function UsuariosAdmin() {
                   <tr key={u.id_evento} className="hover:bg-neutral-900/40 transition-colors">
                     <td className="py-3 px-4 text-neutral-500 font-mono text-xs">{u.id_evento}</td>
                     <td className="py-3 px-4 text-neutral-200 font-medium">{u.nombre}</td>
+                    <td className="py-3 px-4 text-neutral-300 text-sm">{u.email || <span className="text-neutral-600">—</span>}</td>
                     <td className="py-3 px-4">
                       <span
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -569,7 +583,7 @@ export default function UsuariosAdmin() {
                 ))}
                 {usersQ.data?.users.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-neutral-500">
+                    <td colSpan={6} className="py-8 text-center text-neutral-500">
                       No hay usuarios registrados aparte de ti.
                     </td>
                   </tr>

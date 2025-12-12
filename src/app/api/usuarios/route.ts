@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   if ("error" in guard) return guard.error;
   const me = guard.me!;
   const { rows } = await pool.query(
-    `SELECT id_evento, id_cuenta, nombre, rol, permisos, fathom, id_webhook_fathom
+    `SELECT id_evento, id_cuenta, nombre, email, rol, permisos, fathom, id_webhook_fathom
      FROM usuarios_dashboard
      WHERE id_cuenta = $1
      ORDER BY id_evento ASC`,
@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const nombre = String(body?.nombre ?? "").trim();
+    const email = body?.email ? String(body.email).trim() : null;
     const pass = String(body?.pass ?? "").trim();
     const rol = String(body?.rol ?? "usuario").trim().toLowerCase() === "superadmin" ? "superadmin" : "usuario";
     const permisos = rol === "superadmin" ? {} : (body?.permisos ?? {});
@@ -76,10 +77,10 @@ export async function POST(req: NextRequest) {
     }
 
     const ins = await pool.query(
-      `INSERT INTO usuarios_dashboard (id_cuenta, nombre, pass, rol, permisos, fathom, id_webhook_fathom)
-       VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7)
+      `INSERT INTO usuarios_dashboard (id_cuenta, nombre, email, pass, rol, permisos, fathom, id_webhook_fathom)
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8)
        RETURNING id_evento`,
-      [me.id_cuenta, nombre, hashed, rol, JSON.stringify(permisos || {}), fathom_api_key || null, id_webhook_fathom]
+      [me.id_cuenta, nombre, email, hashed, rol, JSON.stringify(permisos || {}), fathom_api_key || null, id_webhook_fathom]
     );
     const createdId = ins.rows?.[0]?.id_evento;
     try {

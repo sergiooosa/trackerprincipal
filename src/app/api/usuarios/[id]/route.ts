@@ -22,6 +22,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const rol = body?.rol ? (String(body.rol).toLowerCase() === "superadmin" ? "superadmin" : "usuario") : undefined;
     const permisos = body?.permisos !== undefined ? body.permisos : undefined;
     const pass = body?.pass ? String(body.pass).trim() : undefined;
+    const email = body?.email !== undefined ? (body.email ? String(body.email).trim() : null) : undefined;
     const fathom_api_key = body?.fathom_api_key !== undefined ? String(body.fathom_api_key).trim() : undefined;
 
     // Buscar estado actual para comparar Fathom
@@ -97,6 +98,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (rol) { sets.push(`rol = $${idx++}`); vals.push(rol); }
     if (permisos !== undefined) { sets.push(`permisos = $${idx++}::jsonb`); vals.push(JSON.stringify(permisos || {})); }
     if (pass) { const hashed = await hashPassword(pass); sets.push(`pass = $${idx++}`); vals.push(hashed); }
+    if (email !== undefined) { sets.push(`email = $${idx++}`); vals.push(email); }
     if (updateFathom) {
       sets.push(`fathom = $${idx++}`); vals.push(fathom_api_key || null);
       sets.push(`id_webhook_fathom = $${idx++}`); vals.push(newWebhookId || null);
